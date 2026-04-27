@@ -82,11 +82,16 @@ const _dungeonCache = {}; // name -> { scene, geometry, material, fitScale }
 function loadOneDungeon(name, url) {
   return new Promise((resolve, reject) => {
     fbxLoader.load(url, (group) => {
+      // Quaternius dungeon FBX exports use Z-up; rotate the whole scene
+      // -90° around X so +Z (their vertical) becomes +Y (Three's vertical).
+      // Without this, walls / stairs / banners render lying on their side.
+      group.rotation.x = -Math.PI / 2;
       group.updateMatrixWorld(true);
 
-      // Bake any parent transforms (root scale from FBX cm→m conversion,
-      // mesh-local rotations, etc.) into a cloned geometry so the bbox
-      // we measure matches what InstancedMesh will render at scale 1.
+      // Bake every parent transform (the rotation just set, root scale
+      // from any FBX cm→m conversion, mesh-local rotations) into a
+      // cloned geometry so the bbox we measure matches what
+      // InstancedMesh will render with an identity matrix.
       let geometry = null, material = null;
       group.traverse((o) => {
         if (!geometry && o.isMesh) {
@@ -96,11 +101,17 @@ function loadOneDungeon(name, url) {
         }
       });
 
-      // Compute a per-module scale factor that makes the largest XZ
-      // dimension equal the target footprint above.
-      let fitScale = 1;
+      let fitScale = 1, minY = 0;
       if (geometry) {
         geometry.computeBoundingBox();
+        // Some modules are modelled centred on origin (bottom below
+        // y=0); shift so the bottom touches y=0 — keeps walls / props
+        // sitting on the floor instead of half-buried.
+        minY = geometry.boundingBox.min.y;
+        if (minY < -0.001) {
+          geometry.translate(0, -minY, 0);
+          geometry.computeBoundingBox();
+        }
         const size = new THREE.Vector3();
         geometry.boundingBox.getSize(size);
         const dom = Math.max(size.x, size.z);
@@ -110,7 +121,7 @@ function loadOneDungeon(name, url) {
         }
       }
 
-      _dungeonCache[name] = { scene: group, geometry, material, fitScale };
+      _dungeonCache[name] = { scene: group, geometry, material, fitScale, minY };
       resolve();
     }, undefined, reject);
   });
@@ -130,13 +141,17 @@ export function getDungeonTemplate(name) {
 }
 
 // Returns a fresh clone of the loaded FBX scene with fitScale already
-// applied — for unique props like Stairs, Chest, Bookcase placed once
-// per floor.
+// applied and the bottom anchored to y=0 — for unique props like Stairs,
+// Chest, Bookcase placed once per floor.
 export function instantiateDungeonProp(name) {
   const m = _dungeonCache[name];
   if (!m) throw new Error('Dungeon module not preloaded: ' + name);
   const clone = m.scene.clone(true);
   clone.scale.setScalar(m.fitScale);
+  // The InstancedMesh path bakes the y-shift into a cloned geometry, but
+  // the prop-clone path renders the original group, so we have to
+  // counter-translate by the (rotated, unscaled) bottom to lift it.
+  if (m.minY < 0) clone.position.y = -m.minY * m.fitScale;
   clone.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true;

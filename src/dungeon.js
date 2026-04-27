@@ -197,22 +197,34 @@ export function buildDungeonMesh() {
     state.dungeonGroup.add(sG);
   }
 
-  /* ── Torches: dynamic point light + decorative wall-torch mesh ── */
+  /* ── Torches: hung on a wall facing into a room. Each placement is a
+        decorative mesh + a flickering PointLight just inside the room. */
   const numTorches = Math.min(12, Math.floor(state.rooms.length * 1.5));
-  for (let i = 0; i < numTorches; i++) {
-    const r = state.rooms[i % state.rooms.length];
-    const tx = r.x + Math.floor(Math.random() * r.w);
-    const tz = r.z + Math.floor(Math.random() * r.h);
+  let torchesPlaced = 0;
+  for (let attempt = 0; attempt < numTorches * 3 && torchesPlaced < numTorches; attempt++) {
+    const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
+    const cellX = r.x + Math.floor(Math.random() * r.w);
+    const cellZ = r.z + Math.floor(Math.random() * r.h);
+    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
+    const wx = cellX + dx, wz = cellZ + dz;
+    if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
+    if (state.dungeon[wz][wx] !== WALL) continue;
 
     const torchMesh = instantiateDungeonProp('Torch_wall');
-    torchMesh.position.set(tx * CELL, 0, tz * CELL);
+    torchMesh.position.set(wx * CELL, 0, wz * CELL);
+    torchMesh.rotation.y = Math.atan2(-dx, -dz); // bracket faces the room
     state.dungeonGroup.add(torchMesh);
 
+    // Light source nudged ~0.5m inside the room from the wall so the room
+    // actually gets lit (a light right inside a wall illuminates nothing).
     const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
-    torch.position.set(tx * CELL, 1.5, tz * CELL);
+    torch.position.set(wx * CELL - dx * 0.5, 1.6, wz * CELL - dz * 0.5);
     torch.userData.flicker = Math.random() * Math.PI * 2;
     torch.userData.baseIntensity = 1.6;
     state.dungeonGroup.add(torch);
+
+    torchesPlaced++;
   }
 
   /* ── Wall flags / banners — hung on a wall facing into a room ── */
