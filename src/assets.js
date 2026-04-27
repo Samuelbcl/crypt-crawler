@@ -43,8 +43,12 @@ export function instantiate(name) {
   const root = cloneSkinned(cached.scene);
   root.traverse((o) => {
     if (o.isMesh) {
-      o.castShadow = true;
-      o.receiveShadow = true;
+      // Shadows on every SkinnedMesh blew up the shadow pass — each frame
+      // the directional light had to re-render skinned bones into the depth
+      // map. The ambient + torch lighting reads fine without per-character
+      // shadows, and gameplay perf jumps a lot.
+      o.castShadow = false;
+      o.receiveShadow = false;
       // SkinnedMesh bounding boxes don't update when bones animate, so the
       // mesh can get incorrectly frustum-culled and disappear at certain
       // angles. Skip culling — character meshes are small and few.

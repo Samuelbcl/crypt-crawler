@@ -147,9 +147,10 @@ function loop(now) {
     updateHud();
   }
 
-  // Always-on systems (animations keep playing in the menu, freeze in pause)
+  // Always-on systems. Animations only run during gameplay — menu and
+  // pause freeze them so the menu doesn't burn 6+ mixer updates per frame.
   updateParticles(dt);
-  if (state.gameState !== STATE.PAUSED) updateMixers(dt);
+  if (state.gameState === STATE.PLAYING) updateMixers(dt);
   if (state.player) updateCamera(dt);
 
   state.renderer.render(state.scene, state.camera);
@@ -185,18 +186,27 @@ async function boot() {
   spawnEnemiesForFloor(1);
   spawnPickupsForFloor(1);
 
+  // Defer the heavy run-creation work (model clones, mixer setup, mesh
+  // builds) to a fresh frame so the click handler returns fast and the
+  // browser can repaint the loading state — keeps interaction timings low.
+  function deferredStartRun() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => startRun());
+    });
+  }
+
   document.getElementById('btn-play').addEventListener('click', () => {
     audioInit();
-    startRun();
+    deferredStartRun();
   });
-  document.getElementById('btn-retry').addEventListener('click', () => startRun());
-  document.getElementById('btn-victory').addEventListener('click', () => startRun());
+  document.getElementById('btn-retry').addEventListener('click', deferredStartRun);
+  document.getElementById('btn-victory').addEventListener('click', deferredStartRun);
 
   // Pause menu wiring
   document.getElementById('btn-resume').addEventListener('click', togglePause);
   document.getElementById('btn-restart').addEventListener('click', () => {
     hidePauseMenu();
-    startRun();
+    deferredStartRun();
   });
   document.getElementById('btn-quit-menu').addEventListener('click', () => {
     hidePauseMenu();
