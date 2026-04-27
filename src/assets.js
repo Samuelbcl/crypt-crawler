@@ -82,16 +82,15 @@ const _dungeonCache = {}; // name -> { scene, geometry, material, fitScale }
 function loadOneDungeon(name, url) {
   return new Promise((resolve, reject) => {
     fbxLoader.load(url, (group) => {
-      // Quaternius dungeon FBX exports use Z-up; rotate the whole scene
-      // -90° around X so +Z (their vertical) becomes +Y (Three's vertical).
-      // Without this, walls / stairs / banners render lying on their side.
-      group.rotation.x = -Math.PI / 2;
+      // FBXLoader already applies the FBX file's UpAxis conversion, so
+      // we don't add any rotation here — adding -90°X on top toppled
+      // walls onto their side.
       group.updateMatrixWorld(true);
 
-      // Bake every parent transform (the rotation just set, root scale
-      // from any FBX cm→m conversion, mesh-local rotations) into a
-      // cloned geometry so the bbox we measure matches what
-      // InstancedMesh will render with an identity matrix.
+      // Bake every parent transform (root scale from any FBX cm→m
+      // conversion, mesh-local rotations) into a cloned geometry so the
+      // bbox we measure matches what InstancedMesh will render with an
+      // identity matrix.
       let geometry = null, material = null;
       group.traverse((o) => {
         if (!geometry && o.isMesh) {
