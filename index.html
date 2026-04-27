@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypt Crawler</title>
+</head>
+<body>
+
+  <div id="game-container"></div>
+
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="crosshair"></div>
+
+  <!-- HUD (in-game) -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="panel">
+        <div class="hp-container">
+          <div class="hp-label">PV</div>
+          <div class="hp-bar">
+            <div class="hp-fill" id="hp-fill" style="width:100%"></div>
+            <div class="hp-text" id="hp-text">100/100</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel floor-info">
+        <div class="floor-num" id="floor-num">Étage 1</div>
+        <div id="enemies-left" style="font-size:12px;color:#aab;">— ennemis</div>
+      </div>
+    </div>
+
+    <div id="hint-zone" style="display:flex;justify-content:center;">
+      <div class="hint hidden" id="hint">↓ Marche sur l'escalier pour descendre ↓</div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="panel stats-line">
+        <div class="stat"><span class="icon">⚔️</span> ATQ <span class="val" id="stat-atk">10</span></div>
+        <div class="stat"><span class="icon">👟</span> VIT <span class="val" id="stat-spd">1.0</span></div>
+        <div class="stat"><span class="icon">🪙</span> <span class="val" id="stat-gold">0</span></div>
+      </div>
+      <div class="panel" style="font-size:12px;color:#aab;">
+        WASD bouger · Souris viser · Clic attaquer · Espace dash · P pause
+      </div>
+    </div>
+  </div>
+
+  <!-- Menu screen -->
+  <div id="menu" class="overlay">
+    <h1>CRYPT CRAWLER</h1>
+    <div class="subtitle">⚔ Action-RPG Roguelike 3D ⚔</div>
+    <div class="controls">
+      <span class="key">WASD</span><span class="desc">se déplacer</span>
+      <span class="key">SOURIS</span><span class="desc">viser</span>
+      <span class="key">CLIC G.</span><span class="desc">attaquer à l'épée</span>
+      <span class="key">ESPACE</span><span class="desc">dash (esquive)</span>
+      <span class="key">P</span><span class="desc">pause</span>
+    </div>
+    <button class="btn" id="btn-play">⚔ COMMENCER L'AVENTURE</button>
+    <div class="best-line" id="menu-best">— Aucune partie jouée —</div>
+  </div>
+
+  <!-- Game over screen -->
+  <div id="gameover" class="overlay hidden">
+    <h2 class="dead">VOUS ÊTES MORT</h2>
+    <div class="score-line">Étage atteint : <span class="val" id="go-floor">1</span></div>
+    <div class="score-line">Or amassé : <span class="val" id="go-gold">0</span></div>
+    <div class="score-line">Ennemis tués : <span class="val" id="go-kills">0</span></div>
+    <div class="best-line" id="go-best">Record : étage 1</div>
+    <button class="btn" id="btn-retry">↻ NOUVEAU RUN</button>
+  </div>
+
+  <!-- Victory screen -->
+  <div id="victory" class="overlay hidden">
+    <h2 class="win">🏆 VICTOIRE 🏆</h2>
+    <div class="subtitle">Le boss est vaincu</div>
+    <div class="score-line">Or final : <span class="val" id="vw-gold">0</span></div>
+    <div class="score-line">Ennemis tués : <span class="val" id="vw-kills">0</span></div>
+    <div class="best-line">Vous avez purgé la crypte !</div>
+    <button class="btn" id="btn-victory">↻ REJOUER</button>
+  </div>
+
+  <div id="pause-hint" class="hidden">⏸ PAUSE</div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
