@@ -11,6 +11,8 @@ import { SFX } from './audio.js';
 import { shake, disposeNode } from './scene.js';
 import { moveWithCollide } from './dungeon.js';
 import { makePickup } from './pickups.js';
+import { playPlayerDeath } from './player.js';
+import { releaseMixer } from './assets.js';
 
 export function damageEnemy(e, dmg) {
   const s = e.userData.stats;
@@ -52,6 +54,7 @@ export function onEnemyDeath(e) {
   }
 
   state.scene.remove(e);
+  if (e.userData.mixer) releaseMixer(e.userData.mixer);
   disposeNode(e);
   state.pStats.kills++;
   state.totalKills++;
@@ -99,6 +102,7 @@ export function onPlayerDeath() {
     state.player.position.x, 1.0, state.player.position.z,
     0xff4444, 30, 4.0,
   );
+  playPlayerDeath();
   setTimeout(showGameOver, 700);
 }
 

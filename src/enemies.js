@@ -10,6 +10,11 @@ import { spawnArrow } from './pickups.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { shake } from './scene.js';
+import { instantiate, playOnly } from './assets.js';
+
+// Quaternius models face -Z; rotate 180° so they face +Z to match enemy
+// rotation logic (rotation.y = atan2(dx, dz) makes +Z the look direction).
+const MODEL_FORWARD_OFFSET = Math.PI;
 
 /* ─── HP BARS ────────────────────────────────────────────────── */
 
@@ -39,6 +44,43 @@ export function updateHpBar(enemy) {
   enemy.userData.hpBar.lookAt(state.camera.position);
 }
 
+/* ─── MODEL HELPERS ──────────────────────────────────────────── */
+
+// Clones a preloaded glTF, attaches it to `parent`, and stashes the mixer +
+// actions on parent.userData so the AI can drive animations later. We expose
+// `body` to keep the shared hurt-flash code working — for skinned models we
+// mark the first SkinnedMesh found as `body`.
+function attachModel(parent, name, scale) {
+  const { root, mixer, actions } = instantiate(name);
+  root.scale.setScalar(scale);
+  root.rotation.y = MODEL_FORWARD_OFFSET;
+  parent.add(root);
+
+  // SkeletonUtils.clone shares materials across instances, so flashing one
+  // enemy red would flash every other enemy with the same model. Clone the
+  // material on each meshed node so per-enemy hurt flashes stay isolated.
+  let body = null;
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.material = o.material.clone();
+      if (!body) body = o;
+    }
+  });
+
+  parent.userData.modelRoot = root;
+  parent.userData.mixer = mixer;
+  parent.userData.actions = actions;
+  parent.userData.body = body;
+  parent.userData.currentAnim = null;
+}
+
+export function setEnemyAnim(e, name, opts) {
+  if (!e.userData.actions) return; // primitive entity (slime)
+  if (e.userData.currentAnim === name) return;
+  e.userData.currentAnim = name;
+  playOnly(e.userData.actions, name, opts);
+}
+
 /* ─── FACTORY ────────────────────────────────────────────────── */
 
 export function makeEnemy(type, x, z, floor) {
@@ -65,80 +107,24 @@ export function makeEnemy(type, x, z, floor) {
       type: 'slime', radius: 0.55, color: 0x55cc66,
     };
   } else if (type === 'goblin') {
-    const bodyGeo = new THREE.CylinderGeometry(0.3, 0.4, 0.8, 10);
-    const m = new THREE.MeshStandardMaterial({ color: 0xc04848, roughness: 0.5 });
-    const b = new THREE.Mesh(bodyGeo, m);
-    b.position.y = 0.4; b.castShadow = true;
-    g.add(b);
-    const headGeo = new THREE.SphereGeometry(0.28, 14, 10);
-    const headM = new THREE.MeshStandardMaterial({ color: 0x88aa44 });
-    const h = new THREE.Mesh(headGeo, headM); h.position.y = 1.0; h.castShadow = true;
-    g.add(h);
-    const eyeGeo = new THREE.SphereGeometry(0.05, 6, 4);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff44 });
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.1, 1.05, 0.22);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.1, 1.05, 0.22);
-    g.add(eyeL); g.add(eyeR);
-    g.userData.body = b;
+    attachModel(g, 'rogue', 0.45);
     stats = {
       hp: 32, maxHp: 32, atk: 12, spd: 2.6, range: 1.4, atkCd: 0,
       type: 'goblin', radius: 0.5, color: 0xc04848,
       charging: false, chargeT: 0, chargeDirX: 0, chargeDirZ: 0,
     };
   } else if (type === 'archer') {
-    const bodyGeo = new THREE.CylinderGeometry(0.25, 0.3, 1.0, 10);
-    const m = new THREE.MeshStandardMaterial({ color: 0xeeeedd, roughness: 0.6 });
-    const b = new THREE.Mesh(bodyGeo, m);
-    b.position.y = 0.5; b.castShadow = true;
-    g.add(b);
-    const headGeo = new THREE.SphereGeometry(0.22, 12, 10);
-    const headM = new THREE.MeshStandardMaterial({ color: 0xddddcc });
-    const h = new THREE.Mesh(headGeo, headM); h.position.y = 1.15; h.castShadow = true;
-    g.add(h);
-    const eyeGeo = new THREE.SphereGeometry(0.05, 6, 4);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.08, 1.18, 0.18);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.08, 1.18, 0.18);
-    g.add(eyeL); g.add(eyeR);
-    g.userData.body = b;
+    attachModel(g, 'ranger', 0.45);
     stats = {
       hp: 20, maxHp: 20, atk: 10, spd: 1.8, range: 7.0, atkCd: 0,
       type: 'archer', radius: 0.4, color: 0xeeeedd,
       shootCd: 0, retreatRange: 3.5,
     };
   } else if (type === 'boss') {
-    const bodyGeo = new THREE.CylinderGeometry(0.7, 1.0, 1.6, 12);
-    const m = new THREE.MeshStandardMaterial({
-      color: 0x7a2020, roughness: 0.4, metalness: 0.2,
-    });
-    const b = new THREE.Mesh(bodyGeo, m);
-    b.position.y = 0.8; b.castShadow = true;
-    g.add(b);
-    const headGeo = new THREE.SphereGeometry(0.55, 16, 12);
-    const headM = new THREE.MeshStandardMaterial({ color: 0x441010, roughness: 0.5 });
-    const h = new THREE.Mesh(headGeo, headM); h.position.y = 1.95; h.castShadow = true;
-    g.add(h);
-
-    const hornGeo = new THREE.ConeGeometry(0.1, 0.6, 8);
-    const hornM = new THREE.MeshStandardMaterial({ color: 0xeeddcc });
-    const hornL = new THREE.Mesh(hornGeo, hornM);
-    hornL.position.set(-0.4, 2.15, 0.1); hornL.rotation.z = 0.5; hornL.castShadow = true;
-    g.add(hornL);
-    const hornR = new THREE.Mesh(hornGeo, hornM);
-    hornR.position.set(0.4, 2.15, 0.1); hornR.rotation.z = -0.5; hornR.castShadow = true;
-    g.add(hornR);
-
-    const eyeGeo = new THREE.SphereGeometry(0.1, 8, 6);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.18, 2.0, 0.45);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.18, 2.0, 0.45);
-    g.add(eyeL); g.add(eyeR);
-
+    attachModel(g, 'monk', 1.1); // scaled up — Monk is the boss
     const aura = new THREE.PointLight(0xff3333, 2.5, 10);
-    aura.position.y = 1.5;
+    aura.position.y = 1.8;
     g.add(aura);
-
-    g.userData.body = b;
     g.userData.aura = aura;
 
     const bossHp = 280 + Math.max(0, floor - 5) * 40;
@@ -227,6 +213,7 @@ export function updateEnemies(dt) {
         s.atkCd = 1.2;
       }
     } else if (s.type === 'goblin') {
+      let didAttack = false;
       if (s.charging) {
         s.chargeT -= dt;
         const sp = (s.spd * 2.2) * dt;
@@ -235,6 +222,8 @@ export function updateEnemies(dt) {
           damagePlayer(s.atk + 4);
           s.atkCd = 0.5;
           s.charging = false;
+          setEnemyAnim(e, 'Dagger_Attack2', { loop: false, crossfade: 0.05 });
+          didAttack = true;
         }
         if (s.chargeT <= 0) s.charging = false;
       } else {
@@ -246,6 +235,8 @@ export function updateEnemies(dt) {
         if (dist < s.range && s.atkCd <= 0) {
           damagePlayer(s.atk);
           s.atkCd = 1.0;
+          setEnemyAnim(e, 'Dagger_Attack', { loop: false, crossfade: 0.05 });
+          didAttack = true;
         }
         // Random charge tell
         if (dist < 8 && dist > 2 && Math.random() < 0.005 && s.atkCd <= 0) {
@@ -257,7 +248,11 @@ export function updateEnemies(dt) {
           if (e.userData.body) e.userData.body.material.emissive.setHex(0xff8800);
         }
       }
+      if (!didAttack) {
+        setEnemyAnim(e, dist < 12 ? 'Run' : 'Idle');
+      }
     } else if (s.type === 'archer') {
+      let didShoot = false;
       if (dist < s.retreatRange) {
         const sp = s.spd * dt;
         moveWithCollide(e, -(dx / dist) * sp, -(dz / dist) * sp, s.radius);
@@ -271,6 +266,12 @@ export function updateEnemies(dt) {
         spawnArrow(e.position.x, e.position.z, dx / dist, dz / dist, s.atk);
         s.shootCd = 1.6;
         SFX.arrow();
+        setEnemyAnim(e, 'Bow_Shoot', { loop: false, crossfade: 0.05 });
+        didShoot = true;
+      }
+      if (!didShoot) {
+        const moving = dist < s.retreatRange || dist > s.range;
+        setEnemyAnim(e, moving ? 'Run_Holding' : 'Idle_Weapon');
       }
     } else if (s.type === 'boss') {
       const hpRatio = s.hp / s.maxHp;
@@ -278,6 +279,7 @@ export function updateEnemies(dt) {
       if (s.phase === 2 && hpRatio < 0.33) { s.phase = 3; SFX.bossRoar(); shake(0.4, 0.7); }
       const phaseSpd = 1 + (s.phase - 1) * 0.4;
 
+      let didAttack = false;
       if (s.charging) {
         s.chargeT -= dt;
         const sp = (s.spd * 3.5 * phaseSpd) * dt;
@@ -286,6 +288,8 @@ export function updateEnemies(dt) {
           damagePlayer(s.atk + 6);
           s.atkCd = 0.4;
           s.charging = false;
+          setEnemyAnim(e, 'Attack2', { loop: false, crossfade: 0.05 });
+          didAttack = true;
         }
         if (s.chargeT <= 0) s.charging = false;
       } else {
@@ -297,6 +301,8 @@ export function updateEnemies(dt) {
         if (dist < s.range + 0.4 && s.atkCd <= 0) {
           damagePlayer(s.atk);
           s.atkCd = 1.0;
+          setEnemyAnim(e, 'Attack', { loop: false, crossfade: 0.05 });
+          didAttack = true;
         }
         s.slamCd -= dt;
         if (s.slamCd <= 0 && dist < 14) {
@@ -308,6 +314,9 @@ export function updateEnemies(dt) {
           s.slamCd = 4.0 - s.phase * 0.6;
           spawnParticles(e.position.x, 1.5, e.position.z, 0xff5533, 12, 2.5);
         }
+      }
+      if (!didAttack) {
+        setEnemyAnim(e, dist < 20 ? 'Run' : 'Idle');
       }
       if (e.userData.aura) {
         e.userData.aura.intensity = 2.0

@@ -1,4 +1,5 @@
-// The player avatar: 3D model, movement, dash, sword attack with arc check.
+// The player avatar: Quaternius Warrior model with animations,
+// movement, dash, sword attack with arc check.
 
 import * as THREE from 'three';
 import { state } from './state.js';
@@ -11,68 +12,41 @@ import { getMouseGroundTarget } from './input.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { damageEnemy } from './combat.js';
+import { instantiate, playOnly } from './assets.js';
+
+// Quaternius models import facing -Z. The game treats +Z toward the camera as
+// "forward" (since Math.atan2(aimX, aimZ) yields 0 when aimZ === 1), so we
+// rotate the model 180° to align its forward axis with the gameplay aim.
+const MODEL_FORWARD_OFFSET = Math.PI;
+const PLAYER_SCALE = 0.55;
 
 export function buildPlayer() {
   const g = new THREE.Group();
 
-  // Body
-  const bodyGeo = new THREE.CylinderGeometry(0.35, 0.4, 0.9, 12);
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x4488dd, roughness: 0.5, metalness: 0.3,
-  });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.45;
-  body.castShadow = true;
-  g.add(body);
+  const { root, mixer, actions } = instantiate('warrior');
+  root.scale.setScalar(PLAYER_SCALE);
+  root.rotation.y = MODEL_FORWARD_OFFSET;
+  g.add(root);
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.3, 16, 12);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xfdc998, roughness: 0.7 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.15;
-  head.castShadow = true;
-  g.add(head);
-
-  // Eyes
-  const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111122 });
-  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.1, 1.18, 0.25);
-  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.1, 1.18, 0.25);
-  g.add(eyeL); g.add(eyeR);
-
-  // Sword (animated during attack)
-  const swordPivot = new THREE.Group();
-  swordPivot.position.set(0.35, 0.7, 0.1);
-
-  const bladeGeo = new THREE.BoxGeometry(0.08, 0.9, 0.04);
-  const bladeMat = new THREE.MeshStandardMaterial({
-    color: 0xddddee, roughness: 0.3, metalness: 0.8,
-    emissive: 0x222244, emissiveIntensity: 0.3,
-  });
-  const blade = new THREE.Mesh(bladeGeo, bladeMat);
-  blade.position.y = 0.45;
-  blade.castShadow = true;
-  swordPivot.add(blade);
-
-  const guardMat = new THREE.MeshStandardMaterial({ color: 0xc0a060, metalness: 0.7 });
-  swordPivot.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.1), guardMat));
-
-  const hiltMat = new THREE.MeshStandardMaterial({ color: 0x4a2d18 });
-  const hilt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.06), hiltMat);
-  hilt.position.y = -0.12;
-  swordPivot.add(hilt);
-
-  swordPivot.rotation.z = -0.2; // resting position
-  g.add(swordPivot);
-  g.userData.sword = swordPivot;
-
-  // Hero glow
+  // Hero glow keeps the heroic vibe and helps in dark dungeons
   const pl = new THREE.PointLight(0x88aaff, 0.8, 6);
   pl.position.y = 1.5;
   g.add(pl);
-  g.userData.light = pl;
 
+  g.userData.modelRoot = root;
+  g.userData.mixer = mixer;
+  g.userData.actions = actions;
+  g.userData.light = pl;
+  g.userData.currentAnim = null;
+
+  setAnim(g, 'Idle');
   return g;
+}
+
+function setAnim(playerGroup, name, opts) {
+  if (playerGroup.userData.currentAnim === name) return;
+  playerGroup.userData.currentAnim = name;
+  playOnly(playerGroup.userData.actions, name, opts);
 }
 
 export function spawnPlayer() {
@@ -125,11 +99,8 @@ export function updatePlayer(dt) {
   } else if (mlen > 0) {
     const speed = 5.5 * state.pStats.spd;
     moveWithCollide(state.player, mx * speed * dt, mz * speed * dt, 0.35);
-    // bob while moving
-    state.player.position.y = Math.abs(Math.sin(performance.now() * 0.012)) * 0.05;
-  } else {
-    state.player.position.y = 0;
   }
+  state.player.position.y = 0;
 
   // Attack trigger
   if (state.mouseClickedThisFrame && state.pAttack.cd <= 0 && !state.pAttack.active) {
@@ -139,22 +110,29 @@ export function updatePlayer(dt) {
     SFX.swing();
     doAttack(aimX, aimZ);
   }
-
-  // Sword animation
-  const sword = state.player.userData.sword;
   if (state.pAttack.active) {
     state.pAttack.t -= dt;
     if (state.pAttack.t <= 0) state.pAttack.active = false;
-    const progress = 1 - (state.pAttack.t / ATTACK_DURATION);
-    const swing = Math.sin(progress * Math.PI) * 1.8 - 0.9;
-    sword.rotation.z = -0.2 + swing;
-    sword.rotation.x = -progress * 0.6;
+  }
+
+  // Animation selection — priority: dash > attack > run > idle.
+  // Death is set externally in combat.js.
+  if (state.pDash.active) {
+    setAnim(state.player, 'Roll', { loop: false, crossfade: 0.05 });
+  } else if (state.pAttack.active) {
+    setAnim(state.player, 'Sword_Attack', { loop: false, crossfade: 0.05 });
+  } else if (mlen > 0) {
+    setAnim(state.player, 'Run_Weapon');
   } else {
-    sword.rotation.z += (-0.2 - sword.rotation.z) * 0.2;
-    sword.rotation.x += (0 - sword.rotation.x) * 0.2;
+    setAnim(state.player, 'Idle_Weapon');
   }
 
   state.mouseClickedThisFrame = false;
+}
+
+export function playPlayerDeath() {
+  if (!state.player) return;
+  setAnim(state.player, 'Death', { loop: false, crossfade: 0.1 });
 }
 
 export function tryDash() {

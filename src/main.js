@@ -8,6 +8,7 @@ import { STATE, CELL, MAX_FLOOR } from './constants.js';
 import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
 import { setupInput } from './input.js';
 import { audioInit, SFX } from './audio.js';
+import { preloadModels, updateMixers, releaseMixer } from './assets.js';
 
 import {
   generateDungeon, buildDungeonMesh,
@@ -36,7 +37,11 @@ function startRun() {
 }
 
 function clearEntities() {
-  for (const e of state.enemies) { state.scene.remove(e); disposeNode(e); }
+  for (const e of state.enemies) {
+    state.scene.remove(e);
+    if (e.userData.mixer) releaseMixer(e.userData.mixer);
+    disposeNode(e);
+  }
   state.enemies.length = 0;
   for (const p of state.pickups) { state.scene.remove(p); disposeNode(p); }
   state.pickups.length = 0;
@@ -58,6 +63,7 @@ function resetRun() {
   state.particles.length = 0;
   if (state.player) {
     state.scene.remove(state.player);
+    if (state.player.userData.mixer) releaseMixer(state.player.userData.mixer);
     disposeNode(state.player);
     state.player = null;
   }
@@ -120,8 +126,9 @@ function loop(now) {
     updateHud();
   }
 
-  // Always-on systems
+  // Always-on systems (animations keep playing in the menu, freeze in pause)
   updateParticles(dt);
+  if (state.gameState !== STATE.PAUSED) updateMixers(dt);
   if (state.player) updateCamera(dt);
 
   state.renderer.render(state.scene, state.camera);
@@ -129,9 +136,20 @@ function loop(now) {
 
 /* ─── Boot ───────────────────────────────────────────────────── */
 
-function boot() {
+async function boot() {
   initThree();
   setupInput();
+
+  const playBtn = document.getElementById('btn-play');
+  const playLabel = playBtn.textContent;
+  playBtn.textContent = '⏳ CHARGEMENT…';
+  playBtn.disabled = true;
+
+  // Block on model preload so buildPlayer/makeEnemy can clone instantly later.
+  await preloadModels();
+
+  playBtn.textContent = playLabel;
+  playBtn.disabled = false;
 
   // Pre-build a "menu scene" so something atmospheric renders behind the menu
   generateDungeon(1);
