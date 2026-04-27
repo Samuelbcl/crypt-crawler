@@ -59,8 +59,8 @@ export const CLASSES = {
     model: 'wizard',
     scale: 0.55,
     color: 0x7744cc,
-    stats: { hp: 75, atk: 16, spd: 0.85 },
-    attack: { range: 3.2, arc: PI * 0.6, cd: 0.60, dur: 0.35 },
+    stats: { hp: 75, atk: 13, spd: 0.85 },
+    attack: { range: 3.0, arc: PI * 0.55, cd: 0.55, dur: 0.32 },
     anims: { idle: 'Idle_Weapon', run: 'Run_Weapon', attack: 'Staff_Attack', dash: 'Roll', death: 'Death' },
   },
   cleric: {
@@ -79,10 +79,13 @@ export const CLASSES = {
 // Difficulty presets. Applied to enemy stats at spawn and to player attack at
 // run start. atkCdMul > 1 makes enemies attack less often (feels "less
 // precise" without introducing RNG misses).
+// Easy gives the player breathing room (less incoming damage, slower
+// attackers) but does NOT boost player damage — keeps every class consistent
+// with its "X-shot" feel from hard mode. Medium is a small nudge.
 export const DIFFICULTIES = {
-  easy:   { label: 'Facile',    enemyAtkMul: 0.55, enemyHpMul: 0.7, enemyAtkCdMul: 1.5,  playerAtkMul: 1.35 },
-  medium: { label: 'Moyen',     enemyAtkMul: 0.8,  enemyHpMul: 0.9, enemyAtkCdMul: 1.2,  playerAtkMul: 1.1  },
-  hard:   { label: 'Difficile', enemyAtkMul: 1.0,  enemyHpMul: 1.0, enemyAtkCdMul: 1.0,  playerAtkMul: 1.0  },
+  easy:   { label: 'Facile',    enemyAtkMul: 0.6,  enemyHpMul: 0.9,  enemyAtkCdMul: 1.4,  playerAtkMul: 1.0 },
+  medium: { label: 'Moyen',     enemyAtkMul: 0.85, enemyHpMul: 0.95, enemyAtkCdMul: 1.15, playerAtkMul: 1.0 },
+  hard:   { label: 'Difficile', enemyAtkMul: 1.0,  enemyHpMul: 1.0,  enemyAtkCdMul: 1.0,  playerAtkMul: 1.0 },
 };
 
 // Inter-floor boons. Stat-mul / additive modifiers applied via apply().
@@ -93,7 +96,7 @@ export const BOONS = [
   { id: 'spd',     icon: '⚡',  label: '+15% Vitesse',         desc: 'Tu te déplaces plus vite.',                   apply: (p) => { p.spd *= 1.15; } },
   { id: 'cdAtk',   icon: '🌪️', label: '-20% Cooldown attaque', desc: 'Tu peux frapper plus souvent.',               apply: (p) => { p.atkCdMul *= 0.8; } },
   { id: 'cdDash',  icon: '💨', label: '-25% Cooldown dash',   desc: 'Le dash recharge plus vite.',                  apply: (p) => { p.dashCdMul *= 0.75; } },
-  { id: 'range',   icon: '🎯', label: '+0.6m Portée',         desc: "L'arc d'attaque touche plus loin.",           apply: (p) => { p.atkRangeAdd += 0.6; } },
-  { id: 'arc',     icon: '🌀', label: '+30% Arc',             desc: "L'arc d'attaque est plus large.",             apply: (p) => { p.atkArcMul *= 1.3; } },
+  { id: 'range',   icon: '🎯', label: '+0.4m Portée',         desc: "L'arc d'attaque touche un peu plus loin.",   apply: (p) => { p.atkRangeAdd += 0.4; } },
+  { id: 'arc',     icon: '🌀', label: '+15% Arc',             desc: "L'arc d'attaque est légèrement plus large.", apply: (p) => { p.atkArcMul *= 1.15; } },
   { id: 'heal',    icon: '🍖', label: 'Soin complet',         desc: 'Restaure tes PV à fond.',                     apply: (p) => { p.hp = p.maxHp; } },
 ];

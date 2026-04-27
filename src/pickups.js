@@ -64,12 +64,15 @@ export function spawnPickupsForFloor(floor) {
   for (const p of state.pickups) state.scene.remove(p);
   state.pickups.length = 0;
 
-  // Only in non-start, non-final rooms
+  // Only in non-start, non-final rooms. Cell-centered so the pickup is
+  // always reachable on a floor tile.
   for (let i = 1; i < state.rooms.length - 1; i++) {
     if (Math.random() >= 0.7) continue;
     const r = state.rooms[i];
-    const x = (r.x + Math.random() * r.w) * CELL;
-    const z = (r.z + Math.random() * r.h) * CELL;
+    const cellX = r.x + Math.floor(Math.random() * r.w);
+    const cellZ = r.z + Math.floor(Math.random() * r.h);
+    const x = cellX * CELL;
+    const z = cellZ * CELL;
 
     const roll = Math.random();
     let type;

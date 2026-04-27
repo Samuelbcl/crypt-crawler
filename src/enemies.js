@@ -178,16 +178,17 @@ export function spawnEnemiesForFloor(floor) {
     return;
   }
 
-  // Regular floor: enemies in non-starting rooms
+  // Regular floor: enemies in non-starting rooms. Spawn at floor cell
+  // centers so isWallAt's rounding can't ever place them inside a wall.
   for (let i = 1; i < state.rooms.length; i++) {
     const r = state.rooms[i];
     const count = 1 + Math.floor(Math.random() * 2) + Math.floor(floor / 2);
     for (let j = 0; j < count; j++) {
       const types = floor >= 2 ? ['slime', 'goblin', 'archer'] : ['slime', 'goblin'];
       const t = types[Math.floor(Math.random() * types.length)];
-      const ex = (r.x + Math.random() * r.w) * CELL;
-      const ez = (r.z + Math.random() * r.h) * CELL;
-      const e = makeEnemy(t, ex, ez, floor);
+      const cellX = r.x + Math.floor(Math.random() * r.w);
+      const cellZ = r.z + Math.floor(Math.random() * r.h);
+      const e = makeEnemy(t, cellX * CELL, cellZ * CELL, floor);
       state.enemies.push(e);
       state.scene.add(e);
     }
