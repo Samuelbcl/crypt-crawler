@@ -59,21 +59,58 @@ const DUNGEON_MODULES = {
   Candelabrum:    '/dungeon/Candelabrum.fbx',
 };
 
-const _dungeonCache = {}; // name -> { scene, geometry, material }
+// Target footprint (largest XZ size, in world units) that each module
+// should occupy after auto-scaling. Walls/floors fill exactly one cell
+// (CELL = 2). Props are smaller. Stairs span a bit more than a cell.
+const DUNGEON_TARGETS = {
+  Wall:            2.0,
+  Wall_Broken:     2.0,
+  Floor_Standard:  2.0,
+  Column_Round:    0.7,
+  Stairs:          2.4,
+  Flag_Wall:       1.4,
+  Doors_RoundArch: 2.0,
+  Bookcase_Full:   1.4,
+  Torch_wall:      0.7,
+  Chest:           0.9,
+  Barrel:          0.7,
+  Candelabrum:     1.0,
+};
+
+const _dungeonCache = {}; // name -> { scene, geometry, material, fitScale }
 
 function loadOneDungeon(name, url) {
   return new Promise((resolve, reject) => {
     fbxLoader.load(url, (group) => {
-      // Find the first mesh inside the loaded FBX group; this is the
-      // template used for InstancedMesh extraction.
+      group.updateMatrixWorld(true);
+
+      // Bake any parent transforms (root scale from FBX cm→m conversion,
+      // mesh-local rotations, etc.) into a cloned geometry so the bbox
+      // we measure matches what InstancedMesh will render at scale 1.
       let geometry = null, material = null;
       group.traverse((o) => {
         if (!geometry && o.isMesh) {
-          geometry = o.geometry;
+          geometry = o.geometry.clone();
+          geometry.applyMatrix4(o.matrixWorld);
           material = o.material;
         }
       });
-      _dungeonCache[name] = { scene: group, geometry, material };
+
+      // Compute a per-module scale factor that makes the largest XZ
+      // dimension equal the target footprint above.
+      let fitScale = 1;
+      if (geometry) {
+        geometry.computeBoundingBox();
+        const size = new THREE.Vector3();
+        geometry.boundingBox.getSize(size);
+        const dom = Math.max(size.x, size.z);
+        if (dom > 0.001) {
+          const target = DUNGEON_TARGETS[name] ?? 2.0;
+          fitScale = target / dom;
+        }
+      }
+
+      _dungeonCache[name] = { scene: group, geometry, material, fitScale };
       resolve();
     }, undefined, reject);
   });
@@ -83,20 +120,23 @@ export async function preloadDungeon() {
   await Promise.all(Object.entries(DUNGEON_MODULES).map(([k, v]) => loadOneDungeon(k, v)));
 }
 
-// Returns { geometry, material } for high-count InstancedMesh use. The
-// caller is responsible for setting up matrices and adding to the scene.
+// Returns { geometry, material, fitScale } for high-count InstancedMesh
+// use. Caller composes per-instance matrices using fitScale on the
+// scale axis so each instance fits one cell.
 export function getDungeonTemplate(name) {
   const m = _dungeonCache[name];
   if (!m) throw new Error('Dungeon module not preloaded: ' + name);
-  return { geometry: m.geometry, material: m.material };
+  return { geometry: m.geometry, material: m.material, fitScale: m.fitScale };
 }
 
-// Returns a fresh clone of the loaded FBX scene — for unique props
-// like Stairs, Chest, Bookcase placed once per floor.
+// Returns a fresh clone of the loaded FBX scene with fitScale already
+// applied — for unique props like Stairs, Chest, Bookcase placed once
+// per floor.
 export function instantiateDungeonProp(name) {
   const m = _dungeonCache[name];
   if (!m) throw new Error('Dungeon module not preloaded: ' + name);
   const clone = m.scene.clone(true);
+  clone.scale.setScalar(m.fitScale);
   clone.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true;

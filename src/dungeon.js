@@ -87,24 +87,32 @@ function carveCorridor(ax, az, bx, bz) {
 
 /* ─── RENDERING ──────────────────────────────────────────────── */
 
-// Quaternius dungeon modules are modelled to roughly fill a 2 m cell when
-// scaled by ~2× — FBXLoader returns them at ~1 m and our CELL is 2 m.
-// Tweaking this rescales every wall/floor/column at once.
-const MODULE_SCALE = 2;
+// Build an InstancedMesh from a dungeon-module template at a list of
+// cell positions, applying the template's per-module fitScale so each
+// instance fits one CELL footprint.
+function instancedFromCells(template, cells) {
+  const mesh = new THREE.InstancedMesh(template.geometry, template.material, cells.length);
+  const matrix = new THREE.Matrix4();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3(template.fitScale, template.fitScale, template.fitScale);
+  const pos = new THREE.Vector3();
+  for (let i = 0; i < cells.length; i++) {
+    const [x, z] = cells[i];
+    pos.set(x * CELL, 0, z * CELL);
+    matrix.compose(pos, quat, scale);
+    mesh.setMatrixAt(i, matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  return mesh;
+}
 
 export function buildDungeonMesh() {
-  // Cleanup old group. Geometry and materials are owned by the asset cache
-  // (shared across runs), so we DON'T dispose them — only detach the wrapper.
+  // Geometry and materials are owned by the asset cache (shared across
+  // runs), so we DON'T dispose them — only detach the wrapper.
   if (state.dungeonGroup) {
     state.scene.remove(state.dungeonGroup);
   }
   state.dungeonGroup = new THREE.Group();
-
-  const matrix = new THREE.Matrix4();
-  const quat = new THREE.Quaternion();
-  const scale = new THREE.Vector3(MODULE_SCALE, MODULE_SCALE, MODULE_SCALE);
-  const pos = new THREE.Vector3();
-  const yAxis = new THREE.Vector3(0, 1, 0);
 
   /* ── Floor: instanced floor tile per floor cell ──────────────── */
   const floorTpl = getDungeonTemplate('Floor_Standard');
@@ -115,15 +123,7 @@ export function buildDungeonMesh() {
       if (t === FLOOR || t === STAIRS) floorCells.push([x, z]);
     }
   }
-  const floor = new THREE.InstancedMesh(floorTpl.geometry, floorTpl.material, floorCells.length);
-  for (let i = 0; i < floorCells.length; i++) {
-    const [x, z] = floorCells[i];
-    pos.set(x * CELL, 0, z * CELL);
-    quat.identity();
-    matrix.compose(pos, quat, scale);
-    floor.setMatrixAt(i, matrix);
-  }
-  floor.instanceMatrix.needsUpdate = true;
+  const floor = instancedFromCells(floorTpl, floorCells);
   floor.receiveShadow = true;
   state.dungeonGroup.add(floor);
 
@@ -145,15 +145,7 @@ export function buildDungeonMesh() {
     }
   }
   const wallTpl = getDungeonTemplate('Wall');
-  const walls = new THREE.InstancedMesh(wallTpl.geometry, wallTpl.material, wallCells.length);
-  for (let i = 0; i < wallCells.length; i++) {
-    const [x, z] = wallCells[i];
-    pos.set(x * CELL, 0, z * CELL);
-    quat.identity();
-    matrix.compose(pos, quat, scale);
-    walls.setMatrixAt(i, matrix);
-  }
-  walls.instanceMatrix.needsUpdate = true;
+  const walls = instancedFromCells(wallTpl, wallCells);
   walls.receiveShadow = true;
   state.dungeonGroup.add(walls);
 
@@ -170,16 +162,7 @@ export function buildDungeonMesh() {
     && state.dungeon[cz][cx] === WALL,
   );
   if (validCorners.length > 0) {
-    const colTpl = getDungeonTemplate('Column_Round');
-    const cols = new THREE.InstancedMesh(colTpl.geometry, colTpl.material, validCorners.length);
-    for (let i = 0; i < validCorners.length; i++) {
-      const [x, z] = validCorners[i];
-      pos.set(x * CELL, 0, z * CELL);
-      quat.identity();
-      matrix.compose(pos, quat, scale);
-      cols.setMatrixAt(i, matrix);
-    }
-    cols.instanceMatrix.needsUpdate = true;
+    const cols = instancedFromCells(getDungeonTemplate('Column_Round'), validCorners);
     cols.receiveShadow = true;
     state.dungeonGroup.add(cols);
   }
@@ -190,9 +173,7 @@ export function buildDungeonMesh() {
   if (state.stairsPos) {
     const sG = new THREE.Group();
 
-    const stairs = instantiateDungeonProp('Stairs');
-    stairs.scale.setScalar(MODULE_SCALE);
-    sG.add(stairs);
+    sG.add(instantiateDungeonProp('Stairs'));
 
     const ringGeo = new THREE.RingGeometry(0.8, 1.0, 24);
     ringGeo.rotateX(-Math.PI / 2);
@@ -224,7 +205,6 @@ export function buildDungeonMesh() {
     const tz = r.z + Math.floor(Math.random() * r.h);
 
     const torchMesh = instantiateDungeonProp('Torch_wall');
-    torchMesh.scale.setScalar(MODULE_SCALE);
     torchMesh.position.set(tx * CELL, 0, tz * CELL);
     state.dungeonGroup.add(torchMesh);
 
@@ -235,11 +215,9 @@ export function buildDungeonMesh() {
     state.dungeonGroup.add(torch);
   }
 
-  /* ── Wall flags / banners — Quaternius Flag_Wall meshes hung on
-        room walls so each floor feels like a hall, not a corridor.   */
-  const flagAttempts = 6;
+  /* ── Wall flags / banners — hung on a wall facing into a room ── */
   let flagsPlaced = 0;
-  for (let i = 0; i < flagAttempts; i++) {
+  for (let i = 0; i < 6 && flagsPlaced < 4; i++) {
     const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
     const cellX = r.x + Math.floor(Math.random() * r.w);
     const cellZ = r.z + Math.floor(Math.random() * r.h);
@@ -249,12 +227,10 @@ export function buildDungeonMesh() {
     if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
     if (state.dungeon[wz][wx] !== WALL) continue;
     const flag = instantiateDungeonProp('Flag_Wall');
-    flag.scale.setScalar(MODULE_SCALE);
     flag.position.set(wx * CELL, 0, wz * CELL);
     flag.rotation.y = Math.atan2(-dx, -dz); // face into the room
     state.dungeonGroup.add(flag);
     flagsPlaced++;
-    if (flagsPlaced >= 4) break;
   }
 
   /* ── Decorative props — sprinkle 0-1 per non-start room ──────── */
@@ -266,7 +242,6 @@ export function buildDungeonMesh() {
     const px = r.x + Math.floor(Math.random() * r.w);
     const pz = r.z + Math.floor(Math.random() * r.h);
     const prop = instantiateDungeonProp(type);
-    prop.scale.setScalar(MODULE_SCALE);
     prop.position.set(px * CELL, 0, pz * CELL);
     prop.rotation.y = Math.random() * Math.PI * 2;
     state.dungeonGroup.add(prop);
