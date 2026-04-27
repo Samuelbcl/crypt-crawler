@@ -5,7 +5,7 @@ import './style.css';
 import { state, saveBestFloor, saveClassKey } from './state.js';
 import { STATE, CELL, MAX_FLOOR, CLASSES, DIFFICULTIES } from './constants.js';
 
-import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
+import { initThree, updateCamera, updateTorches, disposeNode, createGuidanceArrow } from './scene.js';
 import { setupInput } from './input.js';
 import { audioInit, SFX, setMasterVolume } from './audio.js';
 import { preloadModels, updateMixers, releaseMixer } from './assets.js';
@@ -124,6 +124,46 @@ function checkStairs() {
   }
 }
 
+/* ─── Guidance arrow ─────────────────────────────────────────── */
+
+// Floats just in front of the player, points at the stairs, bobs and
+// pulses. Only shown after the floor is cleared so the visual doesn't
+// distract during combat — and never on the boss floor where the goal
+// is the boss, not the stairs.
+function updateGuidanceArrow(t) {
+  const arrow = state.guidanceArrow;
+  if (!arrow) return;
+
+  const visible = state.player
+    && state.stairsPos
+    && state.enemies.length === 0
+    && state.pFloor < MAX_FLOOR
+    && !state.pendingBoon
+    && !state.pFloorTransitioning;
+
+  arrow.visible = visible;
+  if (!visible) return;
+
+  const px = state.player.position.x;
+  const pz = state.player.position.z;
+  const dx = state.stairsPos.x - px;
+  const dz = state.stairsPos.z - pz;
+  const len = Math.hypot(dx, dz) || 1;
+  const ux = dx / len;
+  const uz = dz / len;
+
+  // Hover ~1.4 m ahead of the player toward the stairs, chest height,
+  // with a gentle bob and pulse.
+  const dist = 1.4;
+  arrow.position.set(
+    px + ux * dist,
+    1.4 + Math.sin(t * 4) * 0.12,
+    pz + uz * dist,
+  );
+  arrow.rotation.y = Math.atan2(ux, uz);
+  arrow.scale.setScalar(1 + Math.sin(t * 5) * 0.08);
+}
+
 /* ─── Main loop ──────────────────────────────────────────────── */
 
 function loop(now) {
@@ -147,8 +187,11 @@ function loop(now) {
     updateProjectiles(dt);
     updatePickups(dt);
     updateTorches(dt);
+    updateGuidanceArrow(t);
     checkStairs();
     updateHud();
+  } else if (state.guidanceArrow) {
+    state.guidanceArrow.visible = false;
   }
 
   // Always-on systems. Animations only run during gameplay — menu and
@@ -179,6 +222,10 @@ async function boot() {
 
   setupClassPicker();
   setupDifficultyPicker();
+
+  // Guidance arrow lives across runs — added once, toggled visibility.
+  state.guidanceArrow = createGuidanceArrow();
+  state.scene.add(state.guidanceArrow);
 
   // Pre-build a "menu scene" so something atmospheric renders behind the menu
   generateDungeon(1);

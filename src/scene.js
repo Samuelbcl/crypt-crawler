@@ -105,6 +105,35 @@ export function shake(amount, decay = 0.5) {
   state.shakeDecay = decay;
 }
 
+// Flat arrow that hovers in front of the player and rotates each frame
+// to point at the stairs. Geometry is built once (same shape for every
+// run); position/rotation/visibility are driven by updateGuidanceArrow().
+export function createGuidanceArrow() {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0.5);     // tip
+  shape.lineTo(-0.35, 0.05);
+  shape.lineTo(-0.13, 0.05);
+  shape.lineTo(-0.13, -0.4); // shaft back-left
+  shape.lineTo(0.13, -0.4);  // shaft back-right
+  shape.lineTo(0.13, 0.05);
+  shape.lineTo(0.35, 0.05);
+  shape.closePath();
+  const geo = new THREE.ShapeGeometry(shape);
+  geo.rotateX(-Math.PI / 2); // lay flat; tip now points toward +Z
+
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffd966,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 2;
+  mesh.visible = false;
+  return mesh;
+}
+
 // Walks an Object3D subtree and disposes its GPU resources.
 // Skips InstancedMesh's shared geometry/material — those belong to the dungeon
 // builder which owns its own cleanup.

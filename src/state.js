@@ -64,6 +64,7 @@ export const state = {
   stairsPos: null,        // {x, z} world coords
   stairsMesh: null,       // THREE.Group
   dungeonGroup: null,     // wraps everything for cleanup
+  guidanceArrow: null,    // floating arrow that points at the stairs
 
   // ── Player ───────────────────────────────
   player: null,           // THREE.Group (with userData.sword, userData.light)

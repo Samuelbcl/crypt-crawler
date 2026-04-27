@@ -22,10 +22,9 @@ export function damageEnemy(e, dmg) {
   showDmgNumber(e.position.x, e.position.y + 1.8, e.position.z, dmg, '#ffaa44');
   spawnParticles(e.position.x, 1.0, e.position.z, s.color, 6, 1.5);
   shake(0.12, 0.4);
-  // Hitstop only on the boss — every-hit hitstop on small enemies (esp.
-  // when several goblins overlap an arc) added up to a noticeable freeze.
-  // Kills also get a tiny stop below in onEnemyDeath for impact feel.
-  if (s.isBoss) state.hitstopT = Math.max(state.hitstopT, 0.05);
+  // No per-hit hitstop anywhere — even the 50ms boss stop accumulated to
+  // a perceived freeze over the dozen+ hits it takes to kill the boss.
+  // Kill stops below still mark the moment of death.
   SFX.hit();
 
   // Knockback away from player
@@ -48,8 +47,9 @@ export function onEnemyDeath(e) {
   spawnParticles(e.position.x, 1.0, e.position.z, s.color, 18, 3.0);
   spawnParticles(e.position.x, 0.5, e.position.z, 0xffffff, 6, 2.0, false);
   shake(0.2, 0.5);
-  // Tiny kill-stop only — gives the moment of impact without disrupting flow.
-  state.hitstopT = Math.max(state.hitstopT, s.isBoss ? 0.15 : 0.04);
+  // Tiny kill-stop only — gives the moment of impact without disrupting
+  // flow. Even the boss kill stays modest so the death sequence flows.
+  state.hitstopT = Math.max(state.hitstopT, s.isBoss ? 0.08 : 0.03);
   SFX.enemyDie();
 
   // Drop gold sometimes (not for boss — boss has its own win flow)
