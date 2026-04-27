@@ -129,28 +129,55 @@ export function buildDungeonMesh() {
   floor.receiveShadow = true;
   state.dungeonGroup.add(floor);
 
-  /* ── Walls: instanced wall block per wall cell adjacent to a floor */
-  const wallCells = [];
+  /* ── Walls: one slab per FLOOR-edge that touches a wall.
+
+     Iterating wall cells and placing one mesh at each (the box-wall
+     approach) leaves the cell mostly empty for thin modular walls,
+     producing the gaps visible in earlier screenshots. By iterating
+     floor cells instead and placing a wall at every cardinal boundary
+     that faces a wall (or the grid edge), we get a continuous skirt of
+     wall slabs around every room and corridor — perpendicular pairs
+     meet at the corners and form a closed L. */
+  const wallPlacements = [];
   for (let z = 0; z < GRID_SIZE; z++) {
     for (let x = 0; x < GRID_SIZE; x++) {
-      if (state.dungeon[z][x] !== WALL) continue;
-      let adj = false;
-      const neighbours = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
-      for (const [dx, dz] of neighbours) {
+      const t = state.dungeon[z][x];
+      if (t !== FLOOR && t !== STAIRS) continue;
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      for (const [dx, dz] of dirs) {
         const nx = x + dx, nz = z + dz;
-        if (nx >= 0 && nx < GRID_SIZE && nz >= 0 && nz < GRID_SIZE
-            && state.dungeon[nz][nx] !== WALL) {
-          adj = true; break;
-        }
+        const isWall = nx < 0 || nx >= GRID_SIZE || nz < 0 || nz >= GRID_SIZE
+                      || state.dungeon[nz][nx] === WALL;
+        if (isWall) wallPlacements.push({ x, z, dx, dz });
       }
-      if (adj) wallCells.push([x, z]);
     }
   }
+
   const wallTpl = getDungeonTemplate('Wall');
-  // Embed walls 0.05 m into the floor — closes the thin gap that showed
-  // at the floor / wall seam.
-  const walls = instancedFromCells(wallTpl, wallCells, -0.05);
-  walls.receiveShadow = true;
+  const walls = new THREE.InstancedMesh(wallTpl.geometry, wallTpl.material, wallPlacements.length);
+  {
+    const matrix = new THREE.Matrix4();
+    const quat = new THREE.Quaternion();
+    const wallScale = new THREE.Vector3(wallTpl.fitScale, wallTpl.fitScale, wallTpl.fitScale);
+    const yAxis = new THREE.Vector3(0, 1, 0);
+    const pos = new THREE.Vector3();
+    for (let i = 0; i < wallPlacements.length; i++) {
+      const { x, z, dx, dz } = wallPlacements[i];
+      // Place at the boundary midpoint between this floor cell and the
+      // adjacent wall cell, embedded 5 cm down to hide any seam.
+      pos.set(
+        (x + 0.5 * dx) * CELL,
+        -0.05,
+        (z + 0.5 * dz) * CELL,
+      );
+      // Rotate so the wall's default front face (+Z) points at the floor.
+      quat.setFromAxisAngle(yAxis, Math.atan2(-dx, -dz));
+      matrix.compose(pos, quat, wallScale);
+      walls.setMatrixAt(i, matrix);
+    }
+    walls.instanceMatrix.needsUpdate = true;
+    walls.receiveShadow = true;
+  }
   state.dungeonGroup.add(walls);
 
   /* ── Columns at the four interior corners of every room. Sit on the
