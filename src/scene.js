@@ -119,7 +119,10 @@ export function createGuidanceArrow() {
   shape.lineTo(0.35, 0.05);
   shape.closePath();
   const geo = new THREE.ShapeGeometry(shape);
-  geo.rotateX(-Math.PI / 2); // lay flat; tip now points toward +Z
+  // Lay the arrow flat. rotateX(+π/2) maps the shape's +Y (tip) onto world
+  // +Z, so when we set rotation.y = atan2(ux, uz) the tip lines up with
+  // the (ux, uz) direction vector.
+  geo.rotateX(Math.PI / 2);
 
   const mat = new THREE.MeshBasicMaterial({
     color: 0xffd966,
