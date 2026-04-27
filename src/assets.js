@@ -45,36 +45,74 @@ export async function preloadModels() {
 // the cached scene.
 
 const DUNGEON_MODULES = {
+  // Architecture
   Wall:           '/dungeon/Wall.fbx',
   Wall_Broken:    '/dungeon/Wall_Broken.fbx',
   Floor_Standard: '/dungeon/Floor_Standard.fbx',
   Column_Round:   '/dungeon/Column_Round.fbx',
   Stairs:         '/dungeon/Stairs.fbx',
-  Flag_Wall:      '/dungeon/Flag_Wall.fbx',
   Doors_RoundArch:'/dungeon/Doors_RoundArch.fbx',
-  Bookcase_Full:  '/dungeon/Bookcase_Full.fbx',
+  Window_Open:    '/dungeon/Window_Open.fbx',
+  // Wall mounts
+  Flag_Wall:      '/dungeon/Flag_Wall.fbx',
+  Flag_Wall2:     '/dungeon/Flag_Wall2.fbx',
   Torch_wall:     '/dungeon/Torch_wall.fbx',
+  // Centerpieces
+  Statue_Stag:    '/dungeon/Statue_Stag.fbx',
+  Statue_Fox:     '/dungeon/Statue_Fox.fbx',
+  Carpet:         '/dungeon/Carpet.fbx',
+  // Tall props (against walls / corners)
+  Bookcase_Full:  '/dungeon/Bookcase_Full.fbx',
+  Bookcase_Empty: '/dungeon/Bookcase_Empty.fbx',
+  Candelabrum:    '/dungeon/Candelabrum.fbx',
+  Candelabrum_tall:'/dungeon/Candelabrum_tall.fbx',
+  // Small clutter
   Chest:          '/dungeon/Chest.fbx',
   Barrel:         '/dungeon/Barrel.fbx',
-  Candelabrum:    '/dungeon/Candelabrum.fbx',
+  Crate:          '/dungeon/Crate.fbx',
+  Pot1:           '/dungeon/Pot1.fbx',
+  Pot2:           '/dungeon/Pot2.fbx',
+  Pot3:           '/dungeon/Pot3.fbx',
+  Bones:          '/dungeon/Bones.fbx',
+  Skull:          '/dungeon/Skull.fbx',
+  Candles_1:      '/dungeon/Candles_1.fbx',
 };
 
 // Target footprint (largest XZ size, in world units) that each module
 // should occupy after auto-scaling. Walls/floors fill exactly one cell
 // (CELL = 2). Props are smaller. Stairs span a bit more than a cell.
 const DUNGEON_TARGETS = {
+  // Architecture
   Wall:            2.0,
   Wall_Broken:     2.0,
   Floor_Standard:  2.0,
   Column_Round:    0.7,
   Stairs:          2.4,
-  Flag_Wall:       1.4,
   Doors_RoundArch: 2.0,
-  Bookcase_Full:   1.4,
+  Window_Open:     1.6,
+  // Wall mounts
+  Flag_Wall:       1.4,
+  Flag_Wall2:      1.4,
   Torch_wall:      0.7,
+  // Centerpieces
+  Statue_Stag:     1.2,
+  Statue_Fox:      1.0,
+  Carpet:          1.6,
+  // Tall props
+  Bookcase_Full:   1.4,
+  Bookcase_Empty:  1.4,
+  Candelabrum:     1.0,
+  Candelabrum_tall:0.8,
+  // Small clutter
   Chest:           0.9,
   Barrel:          0.7,
-  Candelabrum:     1.0,
+  Crate:           0.8,
+  Pot1:            0.6,
+  Pot2:            0.5,
+  Pot3:            0.6,
+  Bones:           1.2,
+  Skull:           0.4,
+  Candles_1:       0.5,
 };
 
 const _dungeonCache = {}; // name -> { scene, geometry, material, fitScale }

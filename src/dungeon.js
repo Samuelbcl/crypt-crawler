@@ -153,32 +153,41 @@ export function buildDungeonMesh() {
     }
   }
 
-  const wallTpl = getDungeonTemplate('Wall');
-  const walls = new THREE.InstancedMesh(wallTpl.geometry, wallTpl.material, wallPlacements.length);
-  {
+  // Split wall placements into normal vs broken variants so each set
+  // becomes its own InstancedMesh — lets us mix two wall meshes without
+  // losing the one-draw-call-per-wall-type win.
+  const mainPlacements = [];
+  const brokenPlacements = [];
+  for (const p of wallPlacements) {
+    if (Math.random() < 0.07) brokenPlacements.push(p);
+    else mainPlacements.push(p);
+  }
+
+  const buildOrientedWalls = (templateName, list) => {
+    const tpl = getDungeonTemplate(templateName);
+    const mesh = new THREE.InstancedMesh(tpl.geometry, tpl.material, list.length);
     const matrix = new THREE.Matrix4();
     const quat = new THREE.Quaternion();
-    const wallScale = new THREE.Vector3(wallTpl.fitScale, wallTpl.fitScale, wallTpl.fitScale);
+    const sc = new THREE.Vector3(tpl.fitScale, tpl.fitScale, tpl.fitScale);
     const yAxis = new THREE.Vector3(0, 1, 0);
     const pos = new THREE.Vector3();
-    for (let i = 0; i < wallPlacements.length; i++) {
-      const { x, z, dx, dz } = wallPlacements[i];
+    for (let i = 0; i < list.length; i++) {
+      const { x, z, dx, dz } = list[i];
       // Place at the boundary midpoint between this floor cell and the
       // adjacent wall cell, embedded 5 cm down to hide any seam.
-      pos.set(
-        (x + 0.5 * dx) * CELL,
-        -0.05,
-        (z + 0.5 * dz) * CELL,
-      );
+      pos.set((x + 0.5 * dx) * CELL, -0.05, (z + 0.5 * dz) * CELL);
       // Rotate so the wall's default front face (+Z) points at the floor.
       quat.setFromAxisAngle(yAxis, Math.atan2(-dx, -dz));
-      matrix.compose(pos, quat, wallScale);
-      walls.setMatrixAt(i, matrix);
+      matrix.compose(pos, quat, sc);
+      mesh.setMatrixAt(i, matrix);
     }
-    walls.instanceMatrix.needsUpdate = true;
-    walls.receiveShadow = true;
-  }
-  state.dungeonGroup.add(walls);
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  };
+
+  if (mainPlacements.length > 0)   state.dungeonGroup.add(buildOrientedWalls('Wall',        mainPlacements));
+  if (brokenPlacements.length > 0) state.dungeonGroup.add(buildOrientedWalls('Wall_Broken', brokenPlacements));
 
   /* ── Columns at the four interior corners of every room. Sit on the
         floor cells (no collision change — player walks past them). */
@@ -263,42 +272,87 @@ export function buildDungeonMesh() {
     torchesPlaced++;
   }
 
-  /* ── Wall flags / banners — hung on a wall facing into a room ── */
-  let flagsPlaced = 0;
-  for (let i = 0; i < 6 && flagsPlaced < 4; i++) {
-    const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
-    const cellX = r.x + Math.floor(Math.random() * r.w);
-    const cellZ = r.z + Math.floor(Math.random() * r.h);
+  /* ── Helper: try to find a (cellX, cellZ, dx, dz) where (cellX, cellZ)
+        is a floor cell in some room and (cellX+dx, cellZ+dz) is a wall.
+        Returns null if no candidate is found in `attempts` tries. */
+  function findWallEdgeInARoom(attempts = 8) {
     const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-    const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
-    const wx = cellX + dx, wz = cellZ + dz;
-    if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
-    if (state.dungeon[wz][wx] !== WALL) continue;
-    // Hang the banner on the room-facing edge of the wall, raised so
-    // the top sits high near the ceiling (~3 m).
-    const flag = instantiateDungeonProp('Flag_Wall');
-    flag.position.set(
-      wx * CELL - dx * (CELL * 0.5 - 0.05),
-      1.4,
-      wz * CELL - dz * (CELL * 0.5 - 0.05),
-    );
-    flag.rotation.y = Math.atan2(-dx, -dz);
-    state.dungeonGroup.add(flag);
-    flagsPlaced++;
+    for (let a = 0; a < attempts; a++) {
+      const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
+      const cellX = r.x + Math.floor(Math.random() * r.w);
+      const cellZ = r.z + Math.floor(Math.random() * r.h);
+      const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
+      const wx = cellX + dx, wz = cellZ + dz;
+      if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
+      if (state.dungeon[wz][wx] !== WALL) continue;
+      return { wx, wz, dx, dz };
+    }
+    return null;
   }
 
-  /* ── Decorative props — sprinkle 0-1 per non-start room ──────── */
-  const propTypes = ['Chest', 'Barrel', 'Candelabrum', 'Bookcase_Full'];
-  for (let i = 1; i < state.rooms.length; i++) {
-    if (Math.random() > 0.7) continue;
-    const r = state.rooms[i];
-    const type = propTypes[Math.floor(Math.random() * propTypes.length)];
-    const px = r.x + Math.floor(Math.random() * r.w);
-    const pz = r.z + Math.floor(Math.random() * r.h);
-    const prop = instantiateDungeonProp(type);
-    prop.position.set(px * CELL, 0, pz * CELL);
-    prop.rotation.y = Math.random() * Math.PI * 2;
+  function placeAtWallEdge(name, edge, y) {
+    const prop = instantiateDungeonProp(name);
+    prop.position.set(
+      edge.wx * CELL - edge.dx * (CELL * 0.5 - 0.05),
+      y,
+      edge.wz * CELL - edge.dz * (CELL * 0.5 - 0.05),
+    );
+    prop.rotation.y = Math.atan2(-edge.dx, -edge.dz);
     state.dungeonGroup.add(prop);
+  }
+
+  /* ── Wall flags / banners (Flag_Wall + Flag_Wall2 for variety) ── */
+  const flagTypes = ['Flag_Wall', 'Flag_Wall2'];
+  for (let placed = 0; placed < 5; ) {
+    const edge = findWallEdgeInARoom();
+    if (!edge) break;
+    placeAtWallEdge(flagTypes[Math.floor(Math.random() * flagTypes.length)], edge, 1.4);
+    placed++;
+  }
+
+  /* ── Windows — rare, atmospheric (~2 per floor) ──────────────── */
+  for (let placed = 0; placed < 2; ) {
+    const edge = findWallEdgeInARoom();
+    if (!edge) break;
+    placeAtWallEdge('Window_Open', edge, 1.5);
+    placed++;
+  }
+
+  /* ── Centerpiece per non-start room (statue or carpet, sometimes) ── */
+  const centerpieces = ['Statue_Stag', 'Statue_Fox', 'Carpet'];
+  for (let i = 1; i < state.rooms.length; i++) {
+    const r = state.rooms[i];
+    if (r.w < 3 || r.h < 3) continue;
+    if (Math.random() > 0.45) continue;
+    const type = centerpieces[Math.floor(Math.random() * centerpieces.length)];
+    const prop = instantiateDungeonProp(type);
+    prop.position.set(r.cx * CELL, 0, r.cz * CELL);
+    prop.rotation.y = (type === 'Carpet')
+      ? (Math.random() < 0.5 ? 0 : Math.PI / 2)  // carpet aligned to room
+      : Math.random() * Math.PI * 2;
+    state.dungeonGroup.add(prop);
+  }
+
+  /* ── Furniture — bookcases / candelabras / chests / barrels.
+        Tall props look best lined up against a wall; small clutter
+        looks fine anywhere. We pick a random cell in the room and a
+        random rotation. Each non-start room gets 1-3 props. */
+  const tallProps  = ['Bookcase_Full', 'Bookcase_Empty', 'Candelabrum_tall', 'Candelabrum'];
+  const smallProps = ['Chest', 'Barrel', 'Crate', 'Pot1', 'Pot2', 'Pot3', 'Bones', 'Skull', 'Candles_1'];
+  for (let i = 1; i < state.rooms.length; i++) {
+    const r = state.rooms[i];
+    const numProps = 1 + Math.floor(Math.random() * 3);
+    for (let n = 0; n < numProps; n++) {
+      const useTall = Math.random() < 0.35;
+      const pool = useTall ? tallProps : smallProps;
+      const type = pool[Math.floor(Math.random() * pool.length)];
+      const px = r.x + Math.floor(Math.random() * r.w);
+      const pz = r.z + Math.floor(Math.random() * r.h);
+      const prop = instantiateDungeonProp(type);
+      prop.position.set(px * CELL, 0, pz * CELL);
+      prop.rotation.y = Math.random() * Math.PI * 2;
+      state.dungeonGroup.add(prop);
+    }
   }
 
   state.scene.add(state.dungeonGroup);
