@@ -10,7 +10,7 @@ import { spawnArrow } from './pickups.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { shake } from './scene.js';
-import { instantiate, playOnly } from './assets.js';
+import { instantiate, playOnly, createShadowDisc } from './assets.js';
 
 // Quaternius models import facing +Z, matching the old primitive enemies.
 // rotation.y = atan2(dx, dz) on the parent group already points them at the
@@ -56,6 +56,9 @@ function attachModel(parent, name, scale) {
   root.scale.setScalar(scale);
   root.rotation.y = MODEL_FORWARD_OFFSET;
   parent.add(root);
+
+  // Fake grounding shadow — radius scales with the entity (bigger boss).
+  parent.add(createShadowDisc(name === 'monk' ? 0.85 : 0.4));
 
   // SkeletonUtils.clone shares materials across instances, so flashing one
   // enemy red would flash every other enemy with the same model. Clone the

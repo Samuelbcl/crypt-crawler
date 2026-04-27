@@ -11,9 +11,7 @@ export function initThree() {
     antialias: true,
     powerPreference: 'high-performance',
   });
-  // Cap at 1.5 — on a 2x display this halves pixel count (4x → 2.25x) and
-  // gives a big GPU win without a noticeable quality loss for this style.
-  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.shadowMap.enabled = true;
   state.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -43,9 +41,7 @@ export function initThree() {
   const dir = new THREE.DirectionalLight(0xffd090, 1.3);
   dir.position.set(20, 30, 10);
   dir.castShadow = true;
-  // 512² is plenty for this top-down view and roughly halves the shadow
-  // pass GPU cost vs. 1024².
-  dir.shadow.mapSize.set(512, 512);
+  dir.shadow.mapSize.set(1024, 1024);
   dir.shadow.camera.near = 1;
   dir.shadow.camera.far = 80;
   dir.shadow.camera.left = -25;

@@ -75,6 +75,25 @@ export function updateMixers(dt) {
   for (const m of _mixers) m.update(dt);
 }
 
+// A flat dark disc placed under a character to fake an ambient occlusion
+// "grounding" shadow. Way cheaper than a real cast shadow on a SkinnedMesh
+// (which would re-skin every bone into the shadow depth map each frame),
+// and visually reads almost identical from the gameplay camera angle.
+export function createShadowDisc(radius) {
+  const geo = new THREE.CircleGeometry(radius, 20);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.45,
+    depthWrite: false,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.y = 0.015; // sit just above the floor to avoid z-fighting
+  m.renderOrder = 1;    // draw after the floor plane
+  return m;
+}
+
 // Plays one action and stops all others on the same mixer.
 // Use `crossfade` (seconds) for smooth transitions between looped states.
 // `timeScale` overrides playback speed; `fitDuration` scales the clip so it

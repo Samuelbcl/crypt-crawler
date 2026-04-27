@@ -9,7 +9,7 @@ import { getMouseGroundTarget } from './input.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { damageEnemy } from './combat.js';
-import { instantiate, playOnly } from './assets.js';
+import { instantiate, playOnly, createShadowDisc } from './assets.js';
 
 // Body rotation speed in radians/second. ~12 means a 180° flip takes ~0.26s,
 // snappy without feeling jittery on diagonal direction changes.
@@ -32,6 +32,9 @@ export function buildPlayer() {
   const { root, mixer, actions } = instantiate(cls.model);
   root.scale.setScalar(cls.scale);
   g.add(root);
+
+  // Fake grounding shadow under the hero.
+  g.add(createShadowDisc(0.45));
 
   // Hero glow tinted by class colour.
   const pl = new THREE.PointLight(cls.color, 0.8, 6);
