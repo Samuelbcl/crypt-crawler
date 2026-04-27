@@ -10,6 +10,7 @@ import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { showDmgNumber } from './ui.js';
 import { disposeNode } from './scene.js';
+import { MAX_FLOOR } from './constants.js';
 
 /* ─── PICKUPS ────────────────────────────────────────────────── */
 
@@ -60,30 +61,56 @@ export function makePickup(type, x, z) {
   return g;
 }
 
+// Number of guaranteed hearts per floor, modulated by difficulty.
+// Floor 5 (boss room) is excluded — only one room there, no intermediate
+// space to drop pickups in.
+function guaranteedHearts(floor) {
+  const diffKey = state.pDifficultyKey || 'medium';
+  const base = (diffKey === 'easy') ? 2 : 1;
+  const bump = (floor >= 3) ? 1 : 0;
+  return Math.min(3, base + bump);
+}
+
+function placeAtRandomCell(r, type) {
+  const cellX = r.x + Math.floor(Math.random() * r.w);
+  const cellZ = r.z + Math.floor(Math.random() * r.h);
+  const p = makePickup(type, cellX * CELL, cellZ * CELL);
+  state.pickups.push(p);
+  state.scene.add(p);
+}
+
 export function spawnPickupsForFloor(floor) {
   for (const p of state.pickups) state.scene.remove(p);
   state.pickups.length = 0;
 
-  // Only in non-start, non-final rooms. Cell-centered so the pickup is
-  // always reachable on a floor tile.
+  // Guaranteed hearts: pick distinct intermediate rooms when possible so
+  // they spread across the floor instead of clumping in one room.
+  if (floor < MAX_FLOOR && state.rooms.length > 2) {
+    const heartCount = guaranteedHearts(floor);
+    const candidateRooms = state.rooms.slice(1, -1); // skip start and final
+    // Shuffle candidate rooms
+    for (let i = candidateRooms.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidateRooms[i], candidateRooms[j]] = [candidateRooms[j], candidateRooms[i]];
+    }
+    for (let i = 0; i < heartCount; i++) {
+      const r = candidateRooms[i % candidateRooms.length];
+      placeAtRandomCell(r, 'heart');
+    }
+  }
+
+  // Random extras (gold / sword / boots / extra heart). Only in non-start,
+  // non-final rooms. Cell-centered so the pickup is always on a floor tile.
   for (let i = 1; i < state.rooms.length - 1; i++) {
     if (Math.random() >= 0.7) continue;
     const r = state.rooms[i];
-    const cellX = r.x + Math.floor(Math.random() * r.w);
-    const cellZ = r.z + Math.floor(Math.random() * r.h);
-    const x = cellX * CELL;
-    const z = cellZ * CELL;
-
     const roll = Math.random();
     let type;
-    if (roll < 0.4) type = 'gold';
-    else if (roll < 0.7) type = 'heart';
-    else if (roll < 0.88) type = 'sword';
+    if (roll < 0.5) type = 'gold';
+    else if (roll < 0.72) type = 'heart';
+    else if (roll < 0.9) type = 'sword';
     else type = 'boots';
-
-    const p = makePickup(type, x, z);
-    state.pickups.push(p);
-    state.scene.add(p);
+    placeAtRandomCell(r, type);
   }
 }
 

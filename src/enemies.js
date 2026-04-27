@@ -250,14 +250,18 @@ export function updateEnemies(dt) {
           setEnemyAnim(e, 'Dagger_Attack', { loop: false, crossfade: 0.05 });
           didAttack = true;
         }
-        // Random charge tell
+        // Random charge tell. Guarded against l ~ 0 — if the goblin is
+        // standing right on the player, the charge math would NaN out and
+        // drift the entity off the grid.
         if (dist < 8 && dist > 2 && Math.random() < 0.005 && s.atkCd <= 0) {
-          s.charging = true;
-          s.chargeT = 0.6;
           const l = Math.hypot(dx, dz);
-          s.chargeDirX = dx / l;
-          s.chargeDirZ = dz / l;
-          if (e.userData.body) e.userData.body.material.emissive.setHex(0xff8800);
+          if (l > 0.01) {
+            s.charging = true;
+            s.chargeT = 0.6;
+            s.chargeDirX = dx / l;
+            s.chargeDirZ = dz / l;
+            if (e.userData.body) e.userData.body.material.emissive.setHex(0xff8800);
+          }
         }
       }
       if (!didAttack) {
@@ -318,13 +322,15 @@ export function updateEnemies(dt) {
         }
         s.slamCd -= dt;
         if (s.slamCd <= 0 && dist < 14) {
-          s.charging = true;
-          s.chargeT = 1.0;
           const l = Math.hypot(dx, dz);
-          s.chargeDirX = dx / l;
-          s.chargeDirZ = dz / l;
-          s.slamCd = 4.0 - s.phase * 0.6;
-          spawnParticles(e.position.x, 1.5, e.position.z, 0xff5533, 12, 2.5);
+          if (l > 0.01) {
+            s.charging = true;
+            s.chargeT = 1.0;
+            s.chargeDirX = dx / l;
+            s.chargeDirZ = dz / l;
+            s.slamCd = 4.0 - s.phase * 0.6;
+            spawnParticles(e.position.x, 1.5, e.position.z, 0xff5533, 12, 2.5);
+          }
         }
       }
       if (!didAttack) {

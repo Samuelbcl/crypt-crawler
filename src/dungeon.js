@@ -104,7 +104,7 @@ export function buildDungeonMesh() {
   const floorGeo = new THREE.PlaneGeometry(GRID_SIZE * CELL + CELL * 2, GRID_SIZE * CELL + CELL * 2);
   floorGeo.rotateX(-Math.PI / 2);
   const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x2a2438,
+    color: 0x4a3e30, // warm stone / wood, castle interior
     roughness: 0.95,
     metalness: 0.05,
   });
@@ -133,9 +133,9 @@ export function buildDungeonMesh() {
 
   const wallGeo = new THREE.BoxGeometry(CELL, CELL * 1.6, CELL);
   const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x3a3550,
-    roughness: 0.8,
-    metalness: 0.1,
+    color: 0x8a8a92, // light stone — castle masonry
+    roughness: 0.95,
+    metalness: 0.05,
   });
   const walls = new THREE.InstancedMesh(wallGeo, wallMat, wallCells.length);
   walls.castShadow = true;
@@ -195,6 +195,39 @@ export function buildDungeonMesh() {
     torch.userData.flicker = Math.random() * Math.PI * 2;
     torch.userData.baseIntensity = 1.6;
     state.dungeonGroup.add(torch);
+  }
+
+  // ── Castle banners — try a handful of placements, hang each on the
+  // outer face of a wall cell adjacent to a room cell. Skip silently if
+  // no valid neighbour wall is found (rare on small rooms).
+  const bannerGeo = new THREE.PlaneGeometry(0.8, 1.6);
+  const bannerMat = new THREE.MeshStandardMaterial({
+    color: 0x882020,
+    side: THREE.DoubleSide,
+    roughness: 0.9,
+    emissive: 0x220505,
+    emissiveIntensity: 0.4,
+  });
+  const bannerAttempts = 8;
+  for (let i = 0; i < bannerAttempts; i++) {
+    const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
+    const cellX = r.x + Math.floor(Math.random() * r.w);
+    const cellZ = r.z + Math.floor(Math.random() * r.h);
+    // Pick one cardinal direction and check if the adjacent cell is a wall.
+    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+    const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
+    const wx = cellX + dx, wz = cellZ + dz;
+    if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
+    if (state.dungeon[wz][wx] !== WALL) continue;
+    const banner = new THREE.Mesh(bannerGeo, bannerMat);
+    // Sit the banner just inside the wall cell, facing the room.
+    banner.position.set(
+      wx * CELL - dx * (CELL * 0.5 - 0.02),
+      1.7,
+      wz * CELL - dz * (CELL * 0.5 - 0.02),
+    );
+    banner.rotation.y = Math.atan2(-dx, -dz);
+    state.dungeonGroup.add(banner);
   }
 
   state.scene.add(state.dungeonGroup);

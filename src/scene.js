@@ -17,12 +17,13 @@ export function initThree() {
   state.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   state.renderer.outputColorSpace = THREE.SRGBColorSpace;
   state.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  state.renderer.toneMappingExposure = 1.4;
+  state.renderer.toneMappingExposure = 1.5;
   container.appendChild(state.renderer.domElement);
 
   state.scene = new THREE.Scene();
-  state.scene.background = new THREE.Color(0x0a0a14);
-  state.scene.fog = new THREE.FogExp2(0x0a0a14, 0.03);
+  // Warm brown background + matching fog — castle interior lit by torches.
+  state.scene.background = new THREE.Color(0x1a1410);
+  state.scene.fog = new THREE.FogExp2(0x1a1410, 0.03);
 
   state.camera = new THREE.PerspectiveCamera(
     55,
@@ -33,11 +34,11 @@ export function initThree() {
   state.camera.position.set(0, 14, 10);
   state.camera.lookAt(0, 0, 0);
 
-  // Ambient + directional sun (brighter ambient so character textures pop)
-  const amb = new THREE.AmbientLight(0x6060cc, 0.85);
+  // Warm interior ambient (torchlit hall feel) + slightly warmer directional.
+  const amb = new THREE.AmbientLight(0xb09a70, 0.85);
   state.scene.add(amb);
 
-  const dir = new THREE.DirectionalLight(0xffe0b0, 1.3);
+  const dir = new THREE.DirectionalLight(0xffd090, 1.3);
   dir.position.set(20, 30, 10);
   dir.castShadow = true;
   dir.shadow.mapSize.set(1024, 1024);
