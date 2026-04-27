@@ -168,21 +168,17 @@ export function makeEnemy(type, x, z, floor) {
 
 /* ─── SPAWN ──────────────────────────────────────────────────── */
 
-export function spawnEnemiesForFloor(floor) {
-  state.enemies.length = 0;
+// Spawning all 10-20 skinned-mesh enemies in one frame on a floor change
+// blew the frame budget (600ms+ INP spikes were observed). Build a list
+// of "what to spawn" up front, then drain it across frames respecting a
+// per-frame budget. Boss floor stays synchronous (just one entity).
 
-  if (floor === MAX_FLOOR) {
-    // Boss room: single boss in last room
-    const r = state.rooms[state.rooms.length - 1];
-    const e = makeEnemy('boss', r.cx * CELL, r.cz * CELL, floor);
-    state.enemies.push(e);
-    state.scene.add(e);
-    SFX.bossRoar();
-    return;
-  }
+let _spawnQueue = [];
+let _spawnFloor = 0;
+let _onSpawnComplete = null;
 
-  // Regular floor: enemies in non-starting rooms. Spawn at floor cell
-  // centers so isWallAt's rounding can't ever place them inside a wall.
+function buildEnemyDescriptors(floor) {
+  const descs = [];
   for (let i = 1; i < state.rooms.length; i++) {
     const r = state.rooms[i];
     const count = 1 + Math.floor(Math.random() * 2) + Math.floor(floor / 2);
@@ -191,11 +187,55 @@ export function spawnEnemiesForFloor(floor) {
       const t = types[Math.floor(Math.random() * types.length)];
       const cellX = r.x + Math.floor(Math.random() * r.w);
       const cellZ = r.z + Math.floor(Math.random() * r.h);
-      const e = makeEnemy(t, cellX * CELL, cellZ * CELL, floor);
-      state.enemies.push(e);
-      state.scene.add(e);
+      descs.push({ type: t, x: cellX * CELL, z: cellZ * CELL });
     }
   }
+  return descs;
+}
+
+function processSpawnQueue() {
+  // ~5ms budget per frame. Each makeEnemy clones a SkinnedMesh + builds
+  // an AnimationMixer (~3ms each), so we get 1-2 enemies per frame.
+  const budget = 5;
+  const start = performance.now();
+  while (_spawnQueue.length > 0 && (performance.now() - start) < budget) {
+    const d = _spawnQueue.shift();
+    const e = makeEnemy(d.type, d.x, d.z, _spawnFloor);
+    state.enemies.push(e);
+    state.scene.add(e);
+  }
+  if (_spawnQueue.length > 0) {
+    requestAnimationFrame(processSpawnQueue);
+  } else {
+    const cb = _onSpawnComplete;
+    _onSpawnComplete = null;
+    if (cb) cb();
+  }
+}
+
+export function pendingEnemyCount() {
+  return _spawnQueue.length;
+}
+
+export function spawnEnemiesForFloor(floor, onComplete) {
+  state.enemies.length = 0;
+  _spawnQueue = [];
+  _onSpawnComplete = onComplete || null;
+  _spawnFloor = floor;
+
+  if (floor === MAX_FLOOR) {
+    // Boss room: single boss in last room — spawn synchronously.
+    const r = state.rooms[state.rooms.length - 1];
+    const e = makeEnemy('boss', r.cx * CELL, r.cz * CELL, floor);
+    state.enemies.push(e);
+    state.scene.add(e);
+    SFX.bossRoar();
+    if (_onSpawnComplete) { const cb = _onSpawnComplete; _onSpawnComplete = null; cb(); }
+    return;
+  }
+
+  _spawnQueue = buildEnemyDescriptors(floor);
+  processSpawnQueue();
 }
 
 /* ─── AI ─────────────────────────────────────────────────────── */

@@ -13,6 +13,7 @@ import { moveWithCollide } from './dungeon.js';
 import { makePickup } from './pickups.js';
 import { playPlayerDeath } from './player.js';
 import { releaseMixer } from './assets.js';
+import { pendingEnemyCount } from './enemies.js';
 
 export function damageEnemy(e, dmg) {
   const s = e.userData.stats;
@@ -73,11 +74,15 @@ export function onEnemyDeath(e) {
   }
 
   // Floor cleared on a non-boss floor → offer a boon before the stairs unlock.
+  // pendingEnemyCount > 0 means the spawn queue is still draining — wait
+  // until every enemy is alive before declaring the floor clear.
   if (!s.isBoss
       && state.enemies.length === 0
+      && pendingEnemyCount() === 0
       && state.gameState === STATE.PLAYING
       && state.pFloor < MAX_FLOOR
-      && !state.pendingBoon) {
+      && !state.pendingBoon
+      && !state.pFloorTransitioning) {
     state.pendingBoon = true;
     setTimeout(() => showBoonPicker(), 600);
   }

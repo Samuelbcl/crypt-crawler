@@ -15,7 +15,7 @@ import {
 } from './dungeon.js';
 
 import { buildPlayer, spawnPlayer, updatePlayer } from './player.js';
-import { spawnEnemiesForFloor, updateEnemies } from './enemies.js';
+import { spawnEnemiesForFloor, updateEnemies, pendingEnemyCount } from './enemies.js';
 import { spawnPickupsForFloor, updatePickups, updateProjectiles } from './pickups.js';
 import { updateParticles, clearParticles } from './particles.js';
 import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPicker, setupDifficultyPicker } from './ui.js';
@@ -25,10 +25,13 @@ import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPic
 function startRun() {
   resetRun();
   state.pFloor = 1;
+  state.pFloorTransitioning = true; // gate stairs/boons during initial async spawn
   generateDungeon(state.pFloor);
   buildDungeonMesh();
   spawnPlayer();
-  spawnEnemiesForFloor(state.pFloor);
+  spawnEnemiesForFloor(state.pFloor, () => {
+    state.pFloorTransitioning = false;
+  });
   spawnPickupsForFloor(state.pFloor);
   state.gameState = STATE.PLAYING;
   showHud();
@@ -88,7 +91,12 @@ function nextFloor() {
   const r = state.rooms[0];
   state.player.position.set(r.cx * CELL, 0, r.cz * CELL);
 
-  spawnEnemiesForFloor(state.pFloor);
+  // Enemies spawn time-sliced across frames; the transition flag stays
+  // raised until the queue drains so stairs / boon checks don't fire on
+  // a half-populated floor.
+  spawnEnemiesForFloor(state.pFloor, () => {
+    state.pFloorTransitioning = false;
+  });
   spawnPickupsForFloor(state.pFloor);
 
   // Small heal between floors
@@ -117,8 +125,9 @@ function checkStairs() {
     state.pFloorTransitioning = true;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        // nextFloor() kicks off the time-sliced enemy spawn; the flag is
+        // cleared in its onComplete callback once every enemy is alive.
         nextFloor();
-        state.pFloorTransitioning = false;
       });
     });
   }
