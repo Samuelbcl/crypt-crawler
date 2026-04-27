@@ -5,9 +5,11 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 const loader = new GLTFLoader();
+const fbxLoader = new FBXLoader();
 
 const MODELS = {
   warrior: '/models/Warrior.gltf',
@@ -32,6 +34,76 @@ function loadOne(name, url) {
 
 export async function preloadModels() {
   await Promise.all(Object.entries(MODELS).map(([k, v]) => loadOne(k, v)));
+}
+
+/* ─── Dungeon modules (Quaternius FBX) ───────────────────────── */
+
+// Static dungeon props: walls, floor tiles, columns, stairs, decorative
+// items. Loaded once at boot. For high-count modules (Wall, Floor) we
+// extract the geometry+material so dungeon.js can build an InstancedMesh
+// (one draw call for hundreds of cells); for one-off props we just clone
+// the cached scene.
+
+const DUNGEON_MODULES = {
+  Wall:           '/dungeon/Wall.fbx',
+  Wall_Broken:    '/dungeon/Wall_Broken.fbx',
+  Floor_Standard: '/dungeon/Floor_Standard.fbx',
+  Column_Round:   '/dungeon/Column_Round.fbx',
+  Stairs:         '/dungeon/Stairs.fbx',
+  Flag_Wall:      '/dungeon/Flag_Wall.fbx',
+  Doors_RoundArch:'/dungeon/Doors_RoundArch.fbx',
+  Bookcase_Full:  '/dungeon/Bookcase_Full.fbx',
+  Torch_wall:     '/dungeon/Torch_wall.fbx',
+  Chest:          '/dungeon/Chest.fbx',
+  Barrel:         '/dungeon/Barrel.fbx',
+  Candelabrum:    '/dungeon/Candelabrum.fbx',
+};
+
+const _dungeonCache = {}; // name -> { scene, geometry, material }
+
+function loadOneDungeon(name, url) {
+  return new Promise((resolve, reject) => {
+    fbxLoader.load(url, (group) => {
+      // Find the first mesh inside the loaded FBX group; this is the
+      // template used for InstancedMesh extraction.
+      let geometry = null, material = null;
+      group.traverse((o) => {
+        if (!geometry && o.isMesh) {
+          geometry = o.geometry;
+          material = o.material;
+        }
+      });
+      _dungeonCache[name] = { scene: group, geometry, material };
+      resolve();
+    }, undefined, reject);
+  });
+}
+
+export async function preloadDungeon() {
+  await Promise.all(Object.entries(DUNGEON_MODULES).map(([k, v]) => loadOneDungeon(k, v)));
+}
+
+// Returns { geometry, material } for high-count InstancedMesh use. The
+// caller is responsible for setting up matrices and adding to the scene.
+export function getDungeonTemplate(name) {
+  const m = _dungeonCache[name];
+  if (!m) throw new Error('Dungeon module not preloaded: ' + name);
+  return { geometry: m.geometry, material: m.material };
+}
+
+// Returns a fresh clone of the loaded FBX scene — for unique props
+// like Stairs, Chest, Bookcase placed once per floor.
+export function instantiateDungeonProp(name) {
+  const m = _dungeonCache[name];
+  if (!m) throw new Error('Dungeon module not preloaded: ' + name);
+  const clone = m.scene.clone(true);
+  clone.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+  return clone;
 }
 
 // Returns { root, mixer, actions } — root is a fresh clone with skinning preserved,

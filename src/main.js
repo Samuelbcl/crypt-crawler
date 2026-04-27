@@ -8,7 +8,7 @@ import { STATE, CELL, MAX_FLOOR, CLASSES, DIFFICULTIES } from './constants.js';
 import { initThree, updateCamera, updateTorches, disposeNode, createGuidanceArrow } from './scene.js';
 import { setupInput } from './input.js';
 import { audioInit, SFX, setMasterVolume } from './audio.js';
-import { preloadModels, updateMixers, releaseMixer } from './assets.js';
+import { preloadModels, preloadDungeon, updateMixers, releaseMixer } from './assets.js';
 
 import {
   generateDungeon, buildDungeonMesh,
@@ -223,8 +223,9 @@ async function boot() {
   playBtn.textContent = '⏳ CHARGEMENT…';
   playBtn.disabled = true;
 
-  // Block on model preload so buildPlayer/makeEnemy can clone instantly later.
-  await preloadModels();
+  // Block on every model preload (characters + dungeon modules) so the
+  // first dungeon build doesn't hit a missing-cache error.
+  await Promise.all([preloadModels(), preloadDungeon()]);
 
   playBtn.textContent = playLabel;
   playBtn.disabled = false;
