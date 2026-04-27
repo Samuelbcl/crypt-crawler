@@ -43,8 +43,10 @@ export function instantiate(name) {
     if (o.isMesh) {
       o.castShadow = true;
       o.receiveShadow = true;
-      // Quaternius materials are MeshStandardMaterial with a single color.
-      // Keep them, just make sure they react to scene lighting.
+      // SkinnedMesh bounding boxes don't update when bones animate, so the
+      // mesh can get incorrectly frustum-culled and disappear at certain
+      // angles. Skip culling — character meshes are small and few.
+      o.frustumCulled = false;
     }
   });
 

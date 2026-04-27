@@ -185,15 +185,15 @@ export function buildDungeonMesh() {
   }
 
   // ── Torches (flickering point lights)
-  const numTorches = Math.min(8, Math.floor(state.rooms.length * 1.2));
+  const numTorches = Math.min(12, Math.floor(state.rooms.length * 1.5));
   for (let i = 0; i < numTorches; i++) {
     const r = state.rooms[i % state.rooms.length];
     const tx = (r.x + Math.floor(Math.random() * r.w)) * CELL;
     const tz = (r.z + Math.floor(Math.random() * r.h)) * CELL;
-    const torch = new THREE.PointLight(0xff8c42, 1.0, 7);
+    const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
     torch.position.set(tx, 1.2, tz);
     torch.userData.flicker = Math.random() * Math.PI * 2;
-    torch.userData.baseIntensity = 1.0;
+    torch.userData.baseIntensity = 1.6;
     state.dungeonGroup.add(torch);
   }
 

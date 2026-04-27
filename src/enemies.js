@@ -12,9 +12,10 @@ import { spawnParticles } from './particles.js';
 import { shake } from './scene.js';
 import { instantiate, playOnly } from './assets.js';
 
-// Quaternius models face -Z; rotate 180° so they face +Z to match enemy
-// rotation logic (rotation.y = atan2(dx, dz) makes +Z the look direction).
-const MODEL_FORWARD_OFFSET = Math.PI;
+// Quaternius models import facing +Z, matching the old primitive enemies.
+// rotation.y = atan2(dx, dz) on the parent group already points them at the
+// player without any additional offset.
+const MODEL_FORWARD_OFFSET = 0;
 
 /* ─── HP BARS ────────────────────────────────────────────────── */
 

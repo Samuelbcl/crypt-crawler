@@ -14,10 +14,10 @@ import { spawnParticles } from './particles.js';
 import { damageEnemy } from './combat.js';
 import { instantiate, playOnly } from './assets.js';
 
-// Quaternius models import facing -Z. The game treats +Z toward the camera as
-// "forward" (since Math.atan2(aimX, aimZ) yields 0 when aimZ === 1), so we
-// rotate the model 180° to align its forward axis with the gameplay aim.
-const MODEL_FORWARD_OFFSET = Math.PI;
+// Quaternius models already import facing +Z (same as the old primitive
+// avatars), so no rotation offset is needed — Math.atan2(aimX, aimZ) on the
+// parent already aligns the model with the aim direction.
+const MODEL_FORWARD_OFFSET = 0;
 const PLAYER_SCALE = 0.55;
 
 export function buildPlayer() {
