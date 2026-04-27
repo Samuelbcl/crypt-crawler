@@ -17,7 +17,7 @@ import {
 import { buildPlayer, spawnPlayer, updatePlayer } from './player.js';
 import { spawnEnemiesForFloor, updateEnemies } from './enemies.js';
 import { spawnPickupsForFloor, updatePickups, updateProjectiles } from './pickups.js';
-import { updateParticles } from './particles.js';
+import { updateParticles, clearParticles } from './particles.js';
 import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPicker, setupDifficultyPicker } from './ui.js';
 
 /* ─── Run lifecycle ──────────────────────────────────────────── */
@@ -55,12 +55,7 @@ function resetRun() {
     state.dungeonGroup = null;
   }
   clearEntities();
-  for (const p of state.particles) {
-    state.scene.remove(p);
-    p.geometry.dispose();
-    p.material.dispose();
-  }
-  state.particles.length = 0;
+  clearParticles();
   if (state.player) {
     state.scene.remove(state.player);
     if (state.player.userData.mixer) releaseMixer(state.player.userData.mixer);
@@ -106,7 +101,7 @@ function nextFloor() {
 }
 
 function checkStairs() {
-  if (!state.stairsPos || state.pendingBoon) return;
+  if (!state.stairsPos || state.pendingBoon || state.pFloorTransitioning) return;
   const dx = state.player.position.x - state.stairsPos.x;
   const dz = state.player.position.z - state.stairsPos.z;
   if (Math.hypot(dx, dz) < 0.8 && state.enemies.length === 0) {
@@ -116,7 +111,16 @@ function checkStairs() {
       // Should be caught by boss death first; safety net
       return;
     }
-    nextFloor();
+    // Defer the floor rebuild by one frame so we don't spend ~150ms
+    // synchronously inside the game loop. The transition flag prevents
+    // re-entry and the loop renders one neutral frame in between.
+    state.pFloorTransitioning = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        nextFloor();
+        state.pFloorTransitioning = false;
+      });
+    });
   }
 }
 

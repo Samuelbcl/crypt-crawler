@@ -56,6 +56,7 @@ export const state = {
   pDifficultyKey: loadDifficultyKey(), // 'easy' / 'medium' / 'hard' (persisted)
   activeBoons: [],               // ids of boons already picked this run
   pendingBoon: false,            // true when a boon overlay must be resolved before stairs work
+  pFloorTransitioning: false,    // true while the next-floor rebuild is queued (prevents re-entry)
 
   // ── World ────────────────────────────────
   dungeon: [],            // 2D array of cell types
