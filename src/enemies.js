@@ -3,7 +3,7 @@
 
 import * as THREE from 'three';
 import { state } from './state.js';
-import { CELL, MAX_FLOOR } from './constants.js';
+import { CELL, MAX_FLOOR, DIFFICULTIES } from './constants.js';
 import { moveWithCollide } from './dungeon.js';
 import { damagePlayer } from './combat.js';
 import { spawnArrow } from './pickups.js';
@@ -136,13 +136,23 @@ export function makeEnemy(type, x, z, floor) {
     };
   }
 
-  // Difficulty scaling (boss is pre-tuned)
+  // Floor scaling (boss is pre-tuned).
   if (!stats.isBoss) {
     const mult = 1 + (floor - 1) * 0.18;
     stats.hp = Math.round(stats.hp * mult);
     stats.maxHp = stats.hp;
     stats.atk = Math.round(stats.atk * mult);
   }
+
+  // Apply difficulty preset on top — both boss and regulars get scaled here
+  // so easy mode is meaningfully easier including against the boss.
+  const diff = DIFFICULTIES[state.pDifficultyKey] || DIFFICULTIES.medium;
+  stats.hp = Math.max(1, Math.round(stats.hp * diff.enemyHpMul));
+  stats.maxHp = stats.hp;
+  stats.atk = Math.max(1, Math.round(stats.atk * diff.enemyAtkMul));
+  // Stash the cooldown multiplier on the stats so updateEnemies' attack /
+  // shoot cd assignments can use it without re-reading the global.
+  stats.atkCdMul = diff.enemyAtkCdMul;
 
   g.position.set(x, 0, z);
   g.userData.stats = stats;
@@ -211,7 +221,7 @@ export function updateEnemies(dt) {
       e.position.y = Math.abs(Math.sin(performance.now() * 0.005 + e.id)) * 0.15;
       if (dist < s.range + 0.3 && s.atkCd <= 0) {
         damagePlayer(s.atk);
-        s.atkCd = 1.2;
+        s.atkCd = 1.2 * s.atkCdMul;
       }
     } else if (s.type === 'goblin') {
       let didAttack = false;
@@ -221,7 +231,7 @@ export function updateEnemies(dt) {
         moveWithCollide(e, s.chargeDirX * sp, s.chargeDirZ * sp, s.radius);
         if (dist < 1.0 && s.atkCd <= 0) {
           damagePlayer(s.atk + 4);
-          s.atkCd = 0.5;
+          s.atkCd = 0.5 * s.atkCdMul;
           s.charging = false;
           setEnemyAnim(e, 'Dagger_Attack2', { loop: false, crossfade: 0.05 });
           didAttack = true;
@@ -235,7 +245,7 @@ export function updateEnemies(dt) {
         }
         if (dist < s.range && s.atkCd <= 0) {
           damagePlayer(s.atk);
-          s.atkCd = 1.0;
+          s.atkCd = 1.0 * s.atkCdMul;
           setEnemyAnim(e, 'Dagger_Attack', { loop: false, crossfade: 0.05 });
           didAttack = true;
         }
@@ -265,7 +275,7 @@ export function updateEnemies(dt) {
       s.shootCd = Math.max(0, s.shootCd - dt);
       if (dist < s.range && dist > 1.5 && s.shootCd <= 0) {
         spawnArrow(e.position.x, e.position.z, dx / dist, dz / dist, s.atk);
-        s.shootCd = 1.6;
+        s.shootCd = 1.6 * s.atkCdMul;
         SFX.arrow();
         setEnemyAnim(e, 'Bow_Shoot', { loop: false, crossfade: 0.05 });
         didShoot = true;
@@ -287,7 +297,7 @@ export function updateEnemies(dt) {
         moveWithCollide(e, s.chargeDirX * sp, s.chargeDirZ * sp, s.radius);
         if (dist < 1.6 && s.atkCd <= 0) {
           damagePlayer(s.atk + 6);
-          s.atkCd = 0.4;
+          s.atkCd = 0.4 * s.atkCdMul;
           s.charging = false;
           setEnemyAnim(e, 'Attack2', { loop: false, crossfade: 0.05 });
           didAttack = true;
@@ -301,7 +311,7 @@ export function updateEnemies(dt) {
         }
         if (dist < s.range + 0.4 && s.atkCd <= 0) {
           damagePlayer(s.atk);
-          s.atkCd = 1.0;
+          s.atkCd = 1.0 * s.atkCdMul;
           setEnemyAnim(e, 'Attack', { loop: false, crossfade: 0.05 });
           didAttack = true;
         }

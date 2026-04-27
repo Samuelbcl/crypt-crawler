@@ -3,7 +3,7 @@
 import './style.css';
 
 import { state, saveBestFloor, saveClassKey } from './state.js';
-import { STATE, CELL, MAX_FLOOR, CLASSES } from './constants.js';
+import { STATE, CELL, MAX_FLOOR, CLASSES, DIFFICULTIES } from './constants.js';
 
 import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
 import { setupInput } from './input.js';
@@ -18,7 +18,7 @@ import { buildPlayer, spawnPlayer, updatePlayer } from './player.js';
 import { spawnEnemiesForFloor, updateEnemies } from './enemies.js';
 import { spawnPickupsForFloor, updatePickups, updateProjectiles } from './pickups.js';
 import { updateParticles } from './particles.js';
-import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPicker } from './ui.js';
+import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPicker, setupDifficultyPicker } from './ui.js';
 
 /* ─── Run lifecycle ──────────────────────────────────────────── */
 
@@ -68,8 +68,13 @@ function resetRun() {
     state.player = null;
   }
   const cls = CLASSES[state.pClassKey] || CLASSES.warrior;
+  const diff = DIFFICULTIES[state.pDifficultyKey] || DIFFICULTIES.medium;
   state.pStats = {
-    hp: cls.stats.hp, maxHp: cls.stats.hp, atk: cls.stats.atk, spd: cls.stats.spd,
+    hp: cls.stats.hp, maxHp: cls.stats.hp,
+    // Difficulty multiplies the player's base attack so easy mode actually
+    // feels easier (also speeds up clears).
+    atk: Math.round(cls.stats.atk * diff.playerAtkMul),
+    spd: cls.stats.spd,
     gold: 0, kills: 0,
     // Boon multipliers / additions (1 = no change). Reset per run.
     atkCdMul: 1, dashCdMul: 1, atkRangeAdd: 0, atkArcMul: 1,
@@ -168,6 +173,7 @@ async function boot() {
   playBtn.disabled = false;
 
   setupClassPicker();
+  setupDifficultyPicker();
 
   // Pre-build a "menu scene" so something atmospheric renders behind the menu
   generateDungeon(1);

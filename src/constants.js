@@ -76,6 +76,15 @@ export const CLASSES = {
   },
 };
 
+// Difficulty presets. Applied to enemy stats at spawn and to player attack at
+// run start. atkCdMul > 1 makes enemies attack less often (feels "less
+// precise" without introducing RNG misses).
+export const DIFFICULTIES = {
+  easy:   { label: 'Facile',    enemyAtkMul: 0.55, enemyHpMul: 0.7, enemyAtkCdMul: 1.5,  playerAtkMul: 1.35 },
+  medium: { label: 'Moyen',     enemyAtkMul: 0.8,  enemyHpMul: 0.9, enemyAtkCdMul: 1.2,  playerAtkMul: 1.1  },
+  hard:   { label: 'Difficile', enemyAtkMul: 1.0,  enemyHpMul: 1.0, enemyAtkCdMul: 1.0,  playerAtkMul: 1.0  },
+};
+
 // Inter-floor boons. Stat-mul / additive modifiers applied via apply().
 // Each one runs once when picked from the 3-choice overlay.
 export const BOONS = [

@@ -1,7 +1,7 @@
 // All DOM/UI updates: HUD, screens, floating damage numbers, pause toggle.
 
-import { state, _scratchV3, saveBestFloor, saveClassKey } from './state.js';
-import { STATE, MAX_FLOOR, CLASSES, BOONS } from './constants.js';
+import { state, _scratchV3, saveBestFloor, saveClassKey, saveDifficultyKey } from './state.js';
+import { STATE, MAX_FLOOR, CLASSES, BOONS, DIFFICULTIES } from './constants.js';
 import { SFX, getMasterVolume } from './audio.js';
 
 /* ─── HUD ────────────────────────────────────────────────────── */
@@ -113,6 +113,28 @@ export function triggerVictory() {
   state.gameState = STATE.VICTORY;
   SFX.win();
   showVictory();
+}
+
+/* ─── DIFFICULTY PICKER (main menu) ──────────────────────────── */
+
+export function setupDifficultyPicker() {
+  const picker = document.getElementById('diff-picker');
+  const btns = picker.querySelectorAll('.diff-btn');
+  function syncSelection() {
+    btns.forEach((b) => {
+      b.classList.toggle('selected', b.dataset.diff === state.pDifficultyKey);
+    });
+  }
+  btns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.diff;
+      if (!DIFFICULTIES[key]) return;
+      state.pDifficultyKey = key;
+      saveDifficultyKey(key);
+      syncSelection();
+    });
+  });
+  syncSelection();
 }
 
 /* ─── CLASS PICKER (main menu) ───────────────────────────────── */

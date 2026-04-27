@@ -2,10 +2,11 @@
 // Pragmatic approach for a small game; avoids passing huge contexts around.
 
 import * as THREE from 'three';
-import { STATE, CLASSES } from './constants.js';
+import { STATE, CLASSES, DIFFICULTIES } from './constants.js';
 
 const BEST_FLOOR_KEY = 'cryptCrawler.bestFloor';
 const CLASS_KEY = 'cryptCrawler.class';
+const DIFFICULTY_KEY = 'cryptCrawler.difficulty';
 
 function loadClassKey() {
   try {
@@ -16,6 +17,17 @@ function loadClassKey() {
 
 export function saveClassKey(key) {
   try { localStorage.setItem(CLASS_KEY, key); } catch (_) {}
+}
+
+function loadDifficultyKey() {
+  try {
+    const v = localStorage.getItem(DIFFICULTY_KEY);
+    return (v && DIFFICULTIES[v]) ? v : 'medium';
+  } catch (_) { return 'medium'; }
+}
+
+export function saveDifficultyKey(key) {
+  try { localStorage.setItem(DIFFICULTY_KEY, key); } catch (_) {}
 }
 
 function loadBestFloor() {
@@ -39,8 +51,9 @@ export const state = {
   totalKills: 0,
   totalGold: 0,
 
-  // ── Class & boons ────────────────────────
-  pClassKey: loadClassKey(),     // current class (also persisted to localStorage)
+  // ── Class, difficulty & boons ────────────
+  pClassKey: loadClassKey(),     // current class (persisted)
+  pDifficultyKey: loadDifficultyKey(), // 'easy' / 'medium' / 'hard' (persisted)
   activeBoons: [],               // ids of boons already picked this run
   pendingBoon: false,            // true when a boon overlay must be resolved before stairs work
 

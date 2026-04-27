@@ -22,9 +22,9 @@ export function damageEnemy(e, dmg) {
   showDmgNumber(e.position.x, e.position.y + 1.8, e.position.z, dmg, '#ffaa44');
   spawnParticles(e.position.x, 1.0, e.position.z, s.color, 6, 1.5);
   shake(0.12, 0.4);
-  // Brief hitstop adds weight to the strike — game loop pauses ~70ms while
-  // still rendering. Boss hits get a longer stop (impact pacing).
-  state.hitstopT = Math.max(state.hitstopT, s.isBoss ? 0.12 : 0.07);
+  // Very brief hitstop — adds a tiny bit of weight without reading as a
+  // stutter. Boss hits get a slightly longer beat for impact pacing.
+  state.hitstopT = Math.max(state.hitstopT, s.isBoss ? 0.05 : 0.025);
   SFX.hit();
 
   // Knockback away from player

@@ -11,9 +11,11 @@ const loader = new GLTFLoader();
 
 const MODELS = {
   warrior: '/models/Warrior.gltf',
-  ranger:  '/models/Ranger.gltf',
   rogue:   '/models/Rogue.gltf',
-  monk:    '/models/Monk.gltf',
+  wizard:  '/models/Wizard.gltf',
+  cleric:  '/models/Cleric.gltf',
+  ranger:  '/models/Ranger.gltf', // archer enemy
+  monk:    '/models/Monk.gltf',   // boss
 };
 
 const _cache = {}; // name -> { scene, animations }
