@@ -51,12 +51,36 @@
   <div id="menu" class="overlay">
     <h1>CRYPT CRAWLER</h1>
     <div class="subtitle">⚔ Action-RPG Roguelike 3D ⚔</div>
+
+    <div class="class-picker" id="class-picker">
+      <button class="class-card" data-class="warrior">
+        <div class="class-icon">⚔️</div>
+        <div class="class-label">Guerrier</div>
+        <div class="class-stats">100 PV · 10 ATK · 1.0×</div>
+      </button>
+      <button class="class-card" data-class="rogue">
+        <div class="class-icon">🗡️</div>
+        <div class="class-label">Voleur</div>
+        <div class="class-stats">70 PV · 8 ATK · 1.4×</div>
+      </button>
+      <button class="class-card" data-class="wizard">
+        <div class="class-icon">🔮</div>
+        <div class="class-label">Mage</div>
+        <div class="class-stats">75 PV · 16 ATK · 0.85×</div>
+      </button>
+      <button class="class-card" data-class="cleric">
+        <div class="class-icon">✨</div>
+        <div class="class-label">Prêtre</div>
+        <div class="class-stats">140 PV · 9 ATK · 0.95×</div>
+      </button>
+    </div>
+
     <div class="controls">
       <span class="key">WASD</span><span class="desc">se déplacer</span>
       <span class="key">SOURIS</span><span class="desc">viser</span>
-      <span class="key">CLIC G.</span><span class="desc">attaquer à l'épée</span>
+      <span class="key">CLIC G.</span><span class="desc">attaquer</span>
       <span class="key">ESPACE</span><span class="desc">dash (esquive)</span>
-      <span class="key">P</span><span class="desc">pause</span>
+      <span class="key">P / ESC</span><span class="desc">pause</span>
     </div>
     <button class="btn" id="btn-play">⚔ COMMENCER L'AVENTURE</button>
     <div class="best-line" id="menu-best">— Aucune partie jouée —</div>
@@ -80,6 +104,13 @@
     <div class="score-line">Ennemis tués : <span class="val" id="vw-kills">0</span></div>
     <div class="best-line">Vous avez purgé la crypte !</div>
     <button class="btn" id="btn-victory">↻ REJOUER</button>
+  </div>
+
+  <!-- Boon picker (between floors) -->
+  <div id="boon-picker" class="overlay hidden">
+    <h2 class="win">⚡ FAVEUR DES PROFONDEURS ⚡</h2>
+    <div class="subtitle">Choisis une bénédiction pour le prochain étage</div>
+    <div class="boon-row" id="boon-row"></div>
   </div>
 
   <!-- Pause menu -->

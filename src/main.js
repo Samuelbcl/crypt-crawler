@@ -2,8 +2,8 @@
 
 import './style.css';
 
-import { state, saveBestFloor } from './state.js';
-import { STATE, CELL, MAX_FLOOR } from './constants.js';
+import { state, saveBestFloor, saveClassKey } from './state.js';
+import { STATE, CELL, MAX_FLOOR, CLASSES } from './constants.js';
 
 import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
 import { setupInput } from './input.js';
@@ -18,7 +18,7 @@ import { buildPlayer, spawnPlayer, updatePlayer } from './player.js';
 import { spawnEnemiesForFloor, updateEnemies } from './enemies.js';
 import { spawnPickupsForFloor, updatePickups, updateProjectiles } from './pickups.js';
 import { updateParticles } from './particles.js';
-import { showMenu, showHud, updateHud, togglePause, hidePauseMenu } from './ui.js';
+import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPicker } from './ui.js';
 
 /* ─── Run lifecycle ──────────────────────────────────────────── */
 
@@ -67,7 +67,15 @@ function resetRun() {
     disposeNode(state.player);
     state.player = null;
   }
-  state.pStats = { hp: 100, maxHp: 100, atk: 10, spd: 1.0, gold: 0, kills: 0 };
+  const cls = CLASSES[state.pClassKey] || CLASSES.warrior;
+  state.pStats = {
+    hp: cls.stats.hp, maxHp: cls.stats.hp, atk: cls.stats.atk, spd: cls.stats.spd,
+    gold: 0, kills: 0,
+    // Boon multipliers / additions (1 = no change). Reset per run.
+    atkCdMul: 1, dashCdMul: 1, atkRangeAdd: 0, atkArcMul: 1,
+  };
+  state.activeBoons = [];
+  state.pendingBoon = false;
   state.pFloor = 1;
 }
 
@@ -93,7 +101,7 @@ function nextFloor() {
 }
 
 function checkStairs() {
-  if (!state.stairsPos) return;
+  if (!state.stairsPos || state.pendingBoon) return;
   const dx = state.player.position.x - state.stairsPos.x;
   const dz = state.player.position.z - state.stairsPos.z;
   if (Math.hypot(dx, dz) < 0.8 && state.enemies.length === 0) {
@@ -115,6 +123,14 @@ function loop(now) {
   let dt = t - state.lastTime;
   if (dt > 0.1) dt = 0.1; // clamp tab-switch lag
   state.lastTime = t;
+
+  // Hitstop: freeze gameplay updates briefly to add weight to a strike.
+  // Camera shake still bleeds in via the render call below for that "punch".
+  if (state.hitstopT > 0) {
+    state.hitstopT -= dt;
+    state.renderer.render(state.scene, state.camera);
+    return;
+  }
 
   if (state.gameState === STATE.PLAYING) {
     updatePlayer(dt);
@@ -150,6 +166,8 @@ async function boot() {
 
   playBtn.textContent = playLabel;
   playBtn.disabled = false;
+
+  setupClassPicker();
 
   // Pre-build a "menu scene" so something atmospheric renders behind the menu
   generateDungeon(1);

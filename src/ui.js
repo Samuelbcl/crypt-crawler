@@ -1,7 +1,7 @@
 // All DOM/UI updates: HUD, screens, floating damage numbers, pause toggle.
 
-import { state, _scratchV3, saveBestFloor } from './state.js';
-import { STATE, MAX_FLOOR } from './constants.js';
+import { state, _scratchV3, saveBestFloor, saveClassKey } from './state.js';
+import { STATE, MAX_FLOOR, CLASSES, BOONS } from './constants.js';
 import { SFX, getMasterVolume } from './audio.js';
 
 /* ─── HUD ────────────────────────────────────────────────────── */
@@ -12,6 +12,10 @@ export function updateHud() {
   const ratio = Math.max(0, state.pStats.hp / state.pStats.maxHp);
   hpFill.style.width = (ratio * 100) + '%';
   hpText.textContent = Math.max(0, Math.ceil(state.pStats.hp)) + '/' + state.pStats.maxHp;
+  // Dynamic colour: green > 60%, yellow 30-60%, red < 30%.
+  if (ratio > 0.6) hpFill.style.background = 'linear-gradient(180deg, #66ff88, #2fa84d)';
+  else if (ratio > 0.3) hpFill.style.background = 'linear-gradient(180deg, #ffd966, #c4a03e)';
+  else hpFill.style.background = 'linear-gradient(180deg, #ff5555, #c43e3e)';
 
   document.getElementById('floor-num').textContent =
     state.pFloor === MAX_FLOOR ? '⚠ ÉTAGE BOSS' : 'Étage ' + state.pFloor;
@@ -37,6 +41,7 @@ export function showMenu() {
   document.getElementById('gameover').classList.add('hidden');
   document.getElementById('victory').classList.add('hidden');
   document.getElementById('pause-menu').classList.add('hidden');
+  document.getElementById('boon-picker').classList.add('hidden');
   document.getElementById('crosshair').style.display = 'none';
   const best = document.getElementById('menu-best');
   if (state.bestFloor > 0) {
@@ -108,6 +113,71 @@ export function triggerVictory() {
   state.gameState = STATE.VICTORY;
   SFX.win();
   showVictory();
+}
+
+/* ─── CLASS PICKER (main menu) ───────────────────────────────── */
+
+export function setupClassPicker() {
+  const picker = document.getElementById('class-picker');
+  const cards = picker.querySelectorAll('.class-card');
+  function syncSelection() {
+    cards.forEach((c) => {
+      c.classList.toggle('selected', c.dataset.class === state.pClassKey);
+    });
+  }
+  cards.forEach((card) => {
+    card.addEventListener('click', () => {
+      const key = card.dataset.class;
+      if (!CLASSES[key]) return;
+      state.pClassKey = key;
+      saveClassKey(key);
+      syncSelection();
+    });
+  });
+  syncSelection();
+}
+
+/* ─── BOON PICKER (between floors) ───────────────────────────── */
+
+let _onBoonPicked = null;
+
+export function showBoonPicker(onPicked) {
+  _onBoonPicked = onPicked;
+  const row = document.getElementById('boon-row');
+  row.innerHTML = '';
+
+  // Pick 3 random boons that haven't already been taken this run.
+  const pool = BOONS.filter((b) => !state.activeBoons.includes(b.id));
+  // Even if everything's been picked once, fall back to the full list so the
+  // overlay never shows zero choices on long runs.
+  const choices = (pool.length >= 3 ? pool : BOONS.slice());
+  for (let i = choices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  const picked = choices.slice(0, 3);
+
+  for (const b of picked) {
+    const card = document.createElement('button');
+    card.className = 'boon-card';
+    card.innerHTML = `
+      <div class="boon-icon">${b.icon}</div>
+      <div class="boon-label">${b.label}</div>
+      <div class="boon-desc">${b.desc}</div>
+    `;
+    card.addEventListener('click', () => {
+      b.apply(state.pStats);
+      state.activeBoons.push(b.id);
+      state.pendingBoon = false;
+      document.getElementById('boon-picker').classList.add('hidden');
+      updateHud();
+      const cb = _onBoonPicked;
+      _onBoonPicked = null;
+      if (cb) cb();
+    });
+    row.appendChild(card);
+  }
+  document.getElementById('boon-picker').classList.remove('hidden');
 }
 
 /* ─── FLOATING DAMAGE NUMBERS ────────────────────────────────── */

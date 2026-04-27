@@ -4,9 +4,9 @@
 
 import * as THREE from 'three';
 import { state, saveBestFloor } from './state.js';
-import { STATE } from './constants.js';
+import { STATE, MAX_FLOOR } from './constants.js';
 import { spawnParticles } from './particles.js';
-import { showDmgNumber, showGameOver, triggerVictory } from './ui.js';
+import { showDmgNumber, showGameOver, triggerVictory, showBoonPicker } from './ui.js';
 import { SFX } from './audio.js';
 import { shake, disposeNode } from './scene.js';
 import { moveWithCollide } from './dungeon.js';
@@ -22,6 +22,9 @@ export function damageEnemy(e, dmg) {
   showDmgNumber(e.position.x, e.position.y + 1.8, e.position.z, dmg, '#ffaa44');
   spawnParticles(e.position.x, 1.0, e.position.z, s.color, 6, 1.5);
   shake(0.12, 0.4);
+  // Brief hitstop adds weight to the strike — game loop pauses ~70ms while
+  // still rendering. Boss hits get a longer stop (impact pacing).
+  state.hitstopT = Math.max(state.hitstopT, s.isBoss ? 0.12 : 0.07);
   SFX.hit();
 
   // Knockback away from player
@@ -65,6 +68,16 @@ export function onEnemyDeath(e) {
   if (s.isBoss && state.gameState === STATE.PLAYING) {
     setTimeout(triggerVictory, 800);
   }
+
+  // Floor cleared on a non-boss floor → offer a boon before the stairs unlock.
+  if (!s.isBoss
+      && state.enemies.length === 0
+      && state.gameState === STATE.PLAYING
+      && state.pFloor < MAX_FLOOR
+      && !state.pendingBoon) {
+    state.pendingBoon = true;
+    setTimeout(() => showBoonPicker(), 600);
+  }
 }
 
 export function damagePlayer(amount) {
@@ -80,7 +93,9 @@ export function damagePlayer(amount) {
     amount, '#ff5555',
   );
   spawnParticles(state.player.position.x, 1.0, state.player.position.z, 0xff5555, 8, 2.0);
-  shake(0.25, 0.6);
+  // Lighter, faster-decaying shake — was 0.25/0.6, felt disorienting when
+  // combined with the smooth body rotation lerp.
+  shake(0.15, 0.9);
   flashScreen('hit');
   SFX.hurt();
 

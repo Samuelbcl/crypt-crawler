@@ -71,7 +71,11 @@ export function updateMixers(dt) {
 
 // Plays one action and stops all others on the same mixer.
 // Use `crossfade` (seconds) for smooth transitions between looped states.
-export function playOnly(actions, name, { crossfade = 0.15, loop = true } = {}) {
+// `timeScale` overrides playback speed; `fitDuration` scales the clip so it
+// plays end-to-end in that many seconds (useful when a long attack anim has
+// to fit a short gameplay attack window).
+export function playOnly(actions, name, opts = {}) {
+  const { crossfade = 0.15, loop = true, timeScale, fitDuration } = opts;
   const target = actions[name];
   if (!target) return null;
   for (const k in actions) {
@@ -80,6 +84,11 @@ export function playOnly(actions, name, { crossfade = 0.15, loop = true } = {}) 
     }
   }
   target.reset();
+  if (fitDuration) {
+    target.timeScale = target.getClip().duration / fitDuration;
+  } else {
+    target.timeScale = timeScale ?? 1;
+  }
   target.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
   target.clampWhenFinished = !loop;
   target.fadeIn(crossfade).play();

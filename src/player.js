@@ -1,24 +1,15 @@
-// The player avatar: Quaternius Warrior model with animations,
-// movement, dash, sword attack with arc check.
+// The player avatar: builds whichever class glTF is currently selected,
+// drives movement / dash / attack against that class's animation set.
 
 import * as THREE from 'three';
 import { state } from './state.js';
-import {
-  ATTACK_RANGE, ATTACK_ARC, ATTACK_COOLDOWN, ATTACK_DURATION,
-  DASH_DISTANCE, DASH_DURATION, DASH_COOLDOWN, CELL,
-} from './constants.js';
+import { CLASSES, DASH_DISTANCE, DASH_DURATION, DASH_COOLDOWN, CELL } from './constants.js';
 import { moveWithCollide } from './dungeon.js';
 import { getMouseGroundTarget } from './input.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { damageEnemy } from './combat.js';
 import { instantiate, playOnly } from './assets.js';
-
-// Quaternius models already import facing +Z (same as the old primitive
-// avatars), so no rotation offset is needed — Math.atan2(aimX, aimZ) on the
-// parent already aligns the model with the aim direction.
-const MODEL_FORWARD_OFFSET = 0;
-const PLAYER_SCALE = 0.55;
 
 // Body rotation speed in radians/second. ~12 means a 180° flip takes ~0.26s,
 // snappy without feeling jittery on diagonal direction changes.
@@ -30,16 +21,20 @@ function shortestAngleDelta(from, to) {
   return d - Math.PI;
 }
 
+function currentClass() {
+  return CLASSES[state.pClassKey] || CLASSES.warrior;
+}
+
 export function buildPlayer() {
+  const cls = currentClass();
   const g = new THREE.Group();
 
-  const { root, mixer, actions } = instantiate('warrior');
-  root.scale.setScalar(PLAYER_SCALE);
-  root.rotation.y = MODEL_FORWARD_OFFSET;
+  const { root, mixer, actions } = instantiate(cls.model);
+  root.scale.setScalar(cls.scale);
   g.add(root);
 
-  // Hero glow keeps the heroic vibe and helps in dark dungeons
-  const pl = new THREE.PointLight(0x88aaff, 0.8, 6);
+  // Hero glow tinted by class colour.
+  const pl = new THREE.PointLight(cls.color, 0.8, 6);
   pl.position.y = 1.5;
   g.add(pl);
 
@@ -48,13 +43,17 @@ export function buildPlayer() {
   g.userData.actions = actions;
   g.userData.light = pl;
   g.userData.currentAnim = null;
+  g.userData.classKey = state.pClassKey;
 
-  setAnim(g, 'Idle');
+  setAnim(g, cls.anims.idle);
   return g;
 }
 
 function setAnim(playerGroup, name, opts) {
-  if (playerGroup.userData.currentAnim === name) return;
+  // For looping anims, skip if it's already playing — avoids restarting Run
+  // every frame. One-shots (loop: false) always replay so consecutive clicks
+  // re-trigger the swing.
+  if (playerGroup.userData.currentAnim === name && opts?.loop !== false) return;
   playerGroup.userData.currentAnim = name;
   playOnly(playerGroup.userData.actions, name, opts);
 }
@@ -75,6 +74,10 @@ export function spawnPlayer() {
 
 export function updatePlayer(dt) {
   if (!state.player) return;
+  const cls = currentClass();
+  const atkDur = cls.attack.dur;
+  const atkCd  = cls.attack.cd  * (state.pStats.atkCdMul  || 1);
+  const dashCd = DASH_COOLDOWN  * (state.pStats.dashCdMul || 1);
 
   state.pAttack.cd = Math.max(0, state.pAttack.cd - dt);
   state.pDash.cd = Math.max(0, state.pDash.cd - dt);
@@ -114,8 +117,8 @@ export function updatePlayer(dt) {
   // Attack trigger
   if (state.mouseClickedThisFrame && state.pAttack.cd <= 0 && !state.pAttack.active) {
     state.pAttack.active = true;
-    state.pAttack.t = ATTACK_DURATION;
-    state.pAttack.cd = ATTACK_COOLDOWN;
+    state.pAttack.t = atkDur;
+    state.pAttack.cd = atkCd;
     SFX.swing();
     doAttack(aimX, aimZ);
   }
@@ -125,41 +128,55 @@ export function updatePlayer(dt) {
   }
 
   // Body rotation: face the mouse during an attack swing (so the slash points
-  // at the cursor), otherwise face the movement direction. Standing still
-  // keeps the last facing — no auto-snap to mouse, which felt twitchy.
-  let targetYaw = null;
+  // at the cursor); face the movement direction when moving with WASD; face
+  // the cursor when standing still (more dynamic feel).
+  let targetYaw;
   if (state.pAttack.active) {
     targetYaw = Math.atan2(aimX, aimZ);
   } else if (mlen > 0) {
     targetYaw = Math.atan2(mx, mz);
+  } else if (target) {
+    // Standing still: track the cursor, but only at slower rotation speed so
+    // small mouse jitters don't make the body twitch.
+    targetYaw = Math.atan2(aimX, aimZ);
   }
-  if (targetYaw !== null) {
+  if (targetYaw !== undefined) {
+    const turn = (state.pAttack.active || mlen > 0) ? TURN_SPEED : TURN_SPEED * 0.4;
     const delta = shortestAngleDelta(state.player.rotation.y, targetYaw);
-    state.player.rotation.y += delta * Math.min(1, dt * TURN_SPEED);
+    state.player.rotation.y += delta * Math.min(1, dt * turn);
   }
 
   // Animation selection — priority: dash > attack > run > idle.
   // Death is set externally in combat.js.
   if (state.pDash.active) {
-    setAnim(state.player, 'Roll', { loop: false, crossfade: 0.05 });
+    setAnim(state.player, cls.anims.dash, { loop: false, crossfade: 0.05 });
   } else if (state.pAttack.active) {
-    setAnim(state.player, 'Sword_Attack', { loop: false, crossfade: 0.05 });
+    // fitDuration compresses the attack clip into the gameplay attack window
+    // so the visible impact lands while damage is being applied.
+    setAnim(state.player, cls.anims.attack, {
+      loop: false, crossfade: 0.04, fitDuration: atkDur + 0.06,
+    });
   } else if (mlen > 0) {
-    setAnim(state.player, 'Run_Weapon');
+    setAnim(state.player, cls.anims.run);
   } else {
-    setAnim(state.player, 'Idle_Weapon');
+    setAnim(state.player, cls.anims.idle);
   }
+
+  // Invuln blink — clear visual feedback for i-frames after a hit.
+  const root = state.player.userData.modelRoot;
+  if (root) root.visible = !(state.pInvuln > 0 && (Math.floor(state.pInvuln * 18) % 2));
 
   state.mouseClickedThisFrame = false;
 }
 
 export function playPlayerDeath() {
   if (!state.player) return;
-  setAnim(state.player, 'Death', { loop: false, crossfade: 0.1 });
+  setAnim(state.player, currentClass().anims.death, { loop: false, crossfade: 0.1 });
 }
 
 export function tryDash() {
   if (state.pDash.cd > 0 || state.pDash.active) return;
+  const dashCd = DASH_COOLDOWN * (state.pStats.dashCdMul || 1);
 
   let mx = 0, mz = 0;
   if (state.keys['w'] || state.keys['z'] || state.keys['arrowup']) mz -= 1;
@@ -183,26 +200,29 @@ export function tryDash() {
 
   state.pDash.active = true;
   state.pDash.t = DASH_DURATION;
-  state.pDash.cd = DASH_COOLDOWN;
+  state.pDash.cd = dashCd;
   state.pDash.dirX = mx;
   state.pDash.dirZ = mz;
   state.pInvuln = DASH_DURATION;
 
   SFX.dash();
-  spawnParticles(state.player.position.x, 0.3, state.player.position.z, 0x88aaff, 6, 1.5, false);
+  spawnParticles(state.player.position.x, 0.3, state.player.position.z, currentClass().color, 6, 1.5, false);
 }
 
 function doAttack(aimX, aimZ) {
+  const cls = currentClass();
+  const range = cls.attack.range + (state.pStats.atkRangeAdd || 0);
+  const arc   = cls.attack.arc   * (state.pStats.atkArcMul   || 1);
   for (const e of state.enemies) {
     const dx = e.position.x - state.player.position.x;
     const dz = e.position.z - state.player.position.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > ATTACK_RANGE + e.userData.stats.radius) continue;
+    if (dist > range + e.userData.stats.radius) continue;
     if (dist < 0.01) continue;
     const ex = dx / dist, ez = dz / dist;
     const dot = ex * aimX + ez * aimZ;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-    if (angle <= ATTACK_ARC * 0.5) {
+    if (angle <= arc * 0.5) {
       damageEnemy(e, state.pStats.atk);
     }
   }
