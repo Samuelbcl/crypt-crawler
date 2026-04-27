@@ -1,6 +1,6 @@
 // All DOM/UI updates: HUD, screens, floating damage numbers, pause toggle.
 
-import { state, _scratchV3 } from './state.js';
+import { state, _scratchV3, saveBestFloor } from './state.js';
 import { STATE, MAX_FLOOR } from './constants.js';
 import { SFX } from './audio.js';
 
@@ -85,7 +85,10 @@ export function togglePause() {
 
 export function triggerVictory() {
   if (state.gameState === STATE.VICTORY || state.gameState === STATE.GAME_OVER) return;
-  if (state.pFloor > state.bestFloor) state.bestFloor = state.pFloor;
+  if (state.pFloor > state.bestFloor) {
+    state.bestFloor = state.pFloor;
+    saveBestFloor(state.bestFloor);
+  }
   state.gameState = STATE.VICTORY;
   SFX.win();
   showVictory();

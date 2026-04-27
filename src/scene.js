@@ -103,3 +103,16 @@ export function shake(amount, decay = 0.5) {
   state.shakeAmount = Math.max(state.shakeAmount, amount);
   state.shakeDecay = decay;
 }
+
+// Walks an Object3D subtree and disposes its GPU resources.
+// Skips InstancedMesh's shared geometry/material — those belong to the dungeon
+// builder which owns its own cleanup.
+export function disposeNode(obj) {
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+      else o.material.dispose();
+    }
+  });
+}

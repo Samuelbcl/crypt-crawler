@@ -9,6 +9,7 @@ import { damagePlayer, flashScreen } from './combat.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { showDmgNumber } from './ui.js';
+import { disposeNode } from './scene.js';
 
 /* ─── PICKUPS ────────────────────────────────────────────────── */
 
@@ -95,6 +96,7 @@ export function updatePickups(dt) {
     if (Math.hypot(dx, dz) < 0.9) {
       applyPickup(p);
       state.scene.remove(p);
+      disposeNode(p);
       state.pickups.splice(i, 1);
     }
   }
@@ -161,6 +163,7 @@ export function updateProjectiles(dt) {
     if (Math.hypot(dx, dz) < 0.7) {
       damagePlayer(p.userData.damage);
       state.scene.remove(p);
+      disposeNode(p);
       state.projectiles.splice(i, 1);
       continue;
     }
@@ -168,6 +171,7 @@ export function updateProjectiles(dt) {
     if (isWallAt(p.position.x, p.position.z) || p.userData.life <= 0) {
       spawnParticles(p.position.x, p.position.y, p.position.z, 0xc09060, 4, 1.0, false);
       state.scene.remove(p);
+      disposeNode(p);
       state.projectiles.splice(i, 1);
     }
   }

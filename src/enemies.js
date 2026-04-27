@@ -203,10 +203,10 @@ export function updateEnemies(dt) {
   for (const e of state.enemies) {
     const s = e.userData.stats;
 
-    // Hurt flash
+    // Hurt flash (in-place setHex to avoid allocating a Color every frame)
     if (e.userData.hurtT > 0) {
       e.userData.hurtT -= dt;
-      if (e.userData.body) e.userData.body.material.emissive = new THREE.Color(0xff4444);
+      if (e.userData.body) e.userData.body.material.emissive.setHex(0xff4444);
     } else if (e.userData.body && e.userData.body.material.emissive) {
       e.userData.body.material.emissive.setHex(0x000000);
     }
@@ -254,7 +254,7 @@ export function updateEnemies(dt) {
           const l = Math.hypot(dx, dz);
           s.chargeDirX = dx / l;
           s.chargeDirZ = dz / l;
-          if (e.userData.body) e.userData.body.material.emissive = new THREE.Color(0xff8800);
+          if (e.userData.body) e.userData.body.material.emissive.setHex(0xff8800);
         }
       }
     } else if (s.type === 'archer') {

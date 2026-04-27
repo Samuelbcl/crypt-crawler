@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { state } from './state.js';
 import {
   ATTACK_RANGE, ATTACK_ARC, ATTACK_COOLDOWN, ATTACK_DURATION,
-  DASH_DISTANCE, DASH_DURATION, DASH_COOLDOWN,
+  DASH_DISTANCE, DASH_DURATION, DASH_COOLDOWN, CELL,
 } from './constants.js';
 import { moveWithCollide } from './dungeon.js';
 import { getMouseGroundTarget } from './input.js';
@@ -79,12 +79,14 @@ export function spawnPlayer() {
   if (state.player) state.scene.remove(state.player);
   state.player = buildPlayer();
   const r = state.rooms[0];
-  state.player.position.set(r.cx * 2, 0, r.cz * 2);
+  state.player.position.set(r.cx * CELL, 0, r.cz * CELL);
   state.scene.add(state.player);
 
   state.pAttack = { active: false, t: 0, cd: 0 };
   state.pDash = { active: false, t: 0, cd: 0, dirX: 0, dirZ: 0 };
   state.pInvuln = 0;
+  // Swallow any click that fired while opening the menu / pause overlay.
+  state.mouseClickedThisFrame = false;
 }
 
 export function updatePlayer(dt) {

@@ -3,12 +3,12 @@
 // circular dependencies.
 
 import * as THREE from 'three';
-import { state } from './state.js';
+import { state, saveBestFloor } from './state.js';
 import { STATE } from './constants.js';
 import { spawnParticles } from './particles.js';
 import { showDmgNumber, showGameOver, triggerVictory } from './ui.js';
 import { SFX } from './audio.js';
-import { shake } from './scene.js';
+import { shake, disposeNode } from './scene.js';
 import { moveWithCollide } from './dungeon.js';
 import { makePickup } from './pickups.js';
 
@@ -52,6 +52,7 @@ export function onEnemyDeath(e) {
   }
 
   state.scene.remove(e);
+  disposeNode(e);
   state.pStats.kills++;
   state.totalKills++;
 
@@ -87,7 +88,10 @@ export function damagePlayer(amount) {
 }
 
 export function onPlayerDeath() {
-  if (state.pFloor > state.bestFloor) state.bestFloor = state.pFloor;
+  if (state.pFloor > state.bestFloor) {
+    state.bestFloor = state.pFloor;
+    saveBestFloor(state.bestFloor);
+  }
   state.gameState = STATE.GAME_OVER;
   SFX.death();
   shake(0.4, 0.5);

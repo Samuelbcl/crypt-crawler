@@ -4,11 +4,26 @@
 import * as THREE from 'three';
 import { STATE } from './constants.js';
 
+const BEST_FLOOR_KEY = 'cryptCrawler.bestFloor';
+
+function loadBestFloor() {
+  try {
+    const v = parseInt(localStorage.getItem(BEST_FLOOR_KEY) || '0', 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+export function saveBestFloor(floor) {
+  try { localStorage.setItem(BEST_FLOOR_KEY, String(floor)); } catch (_) {}
+}
+
 export const state = {
   // ── Game flow ────────────────────────────
   gameState: STATE.MENU,
   pFloor: 1,
-  bestFloor: 0,
+  bestFloor: loadBestFloor(),
   totalKills: 0,
   totalGold: 0,
 

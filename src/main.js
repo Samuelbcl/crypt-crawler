@@ -2,10 +2,10 @@
 
 import './style.css';
 
-import { state } from './state.js';
+import { state, saveBestFloor } from './state.js';
 import { STATE, CELL, MAX_FLOOR } from './constants.js';
 
-import { initThree, updateCamera, updateTorches } from './scene.js';
+import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
 import { setupInput } from './input.js';
 import { audioInit, SFX } from './audio.js';
 
@@ -35,17 +35,21 @@ function startRun() {
   audioInit();
 }
 
+function clearEntities() {
+  for (const e of state.enemies) { state.scene.remove(e); disposeNode(e); }
+  state.enemies.length = 0;
+  for (const p of state.pickups) { state.scene.remove(p); disposeNode(p); }
+  state.pickups.length = 0;
+  for (const p of state.projectiles) { state.scene.remove(p); disposeNode(p); }
+  state.projectiles.length = 0;
+}
+
 function resetRun() {
   if (state.dungeonGroup) {
     state.scene.remove(state.dungeonGroup);
     state.dungeonGroup = null;
   }
-  for (const e of state.enemies) state.scene.remove(e);
-  state.enemies.length = 0;
-  for (const p of state.pickups) state.scene.remove(p);
-  state.pickups.length = 0;
-  for (const p of state.projectiles) state.scene.remove(p);
-  state.projectiles.length = 0;
+  clearEntities();
   for (const p of state.particles) {
     state.scene.remove(p);
     p.geometry.dispose();
@@ -54,6 +58,7 @@ function resetRun() {
   state.particles.length = 0;
   if (state.player) {
     state.scene.remove(state.player);
+    disposeNode(state.player);
     state.player = null;
   }
   state.pStats = { hp: 100, maxHp: 100, atk: 10, spd: 1.0, gold: 0, kills: 0 };
@@ -61,12 +66,7 @@ function resetRun() {
 }
 
 function nextFloor() {
-  for (const p of state.pickups) state.scene.remove(p);
-  state.pickups.length = 0;
-  for (const p of state.projectiles) state.scene.remove(p);
-  state.projectiles.length = 0;
-  for (const e of state.enemies) state.scene.remove(e);
-  state.enemies.length = 0;
+  clearEntities();
 
   generateDungeon(state.pFloor);
   buildDungeonMesh();
@@ -79,7 +79,10 @@ function nextFloor() {
 
   // Small heal between floors
   state.pStats.hp = Math.min(state.pStats.maxHp, state.pStats.hp + 15);
-  if (state.pFloor > state.bestFloor) state.bestFloor = state.pFloor;
+  if (state.pFloor > state.bestFloor) {
+    state.bestFloor = state.pFloor;
+    saveBestFloor(state.bestFloor);
+  }
   updateHud();
 }
 
