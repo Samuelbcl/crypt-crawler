@@ -89,8 +89,10 @@ function carveCorridor(ax, az, bx, bz) {
 
 // Build an InstancedMesh from a dungeon-module template at a list of
 // cell positions, applying the template's per-module fitScale so each
-// instance fits one CELL footprint.
-function instancedFromCells(template, cells) {
+// instance fits one CELL footprint. yOffset shifts every instance
+// vertically (used to embed walls/columns slightly into the floor so
+// any tiny gap at the floor-wall seam is hidden).
+function instancedFromCells(template, cells, yOffset = 0) {
   const mesh = new THREE.InstancedMesh(template.geometry, template.material, cells.length);
   const matrix = new THREE.Matrix4();
   const quat = new THREE.Quaternion();
@@ -98,7 +100,7 @@ function instancedFromCells(template, cells) {
   const pos = new THREE.Vector3();
   for (let i = 0; i < cells.length; i++) {
     const [x, z] = cells[i];
-    pos.set(x * CELL, 0, z * CELL);
+    pos.set(x * CELL, yOffset, z * CELL);
     matrix.compose(pos, quat, scale);
     mesh.setMatrixAt(i, matrix);
   }
@@ -145,24 +147,25 @@ export function buildDungeonMesh() {
     }
   }
   const wallTpl = getDungeonTemplate('Wall');
-  const walls = instancedFromCells(wallTpl, wallCells);
+  // Embed walls 0.05 m into the floor — closes the thin gap that showed
+  // at the floor / wall seam.
+  const walls = instancedFromCells(wallTpl, wallCells, -0.05);
   walls.receiveShadow = true;
   state.dungeonGroup.add(walls);
 
-  /* ── Columns at room corners ─────────────────────────────────── */
-  const cornerCells = [];
+  /* ── Columns at the four interior corners of every room. Sit on the
+        floor cells (no collision change — player walks past them). */
+  const interiorCorners = [];
   for (const r of state.rooms) {
-    cornerCells.push([r.x - 1,        r.z - 1]);
-    cornerCells.push([r.x + r.w,      r.z - 1]);
-    cornerCells.push([r.x - 1,        r.z + r.h]);
-    cornerCells.push([r.x + r.w,      r.z + r.h]);
+    if (r.w >= 2 && r.h >= 2) {
+      interiorCorners.push([r.x,             r.z]);
+      interiorCorners.push([r.x + r.w - 1,   r.z]);
+      interiorCorners.push([r.x,             r.z + r.h - 1]);
+      interiorCorners.push([r.x + r.w - 1,   r.z + r.h - 1]);
+    }
   }
-  const validCorners = cornerCells.filter(([cx, cz]) =>
-    cx >= 0 && cx < GRID_SIZE && cz >= 0 && cz < GRID_SIZE
-    && state.dungeon[cz][cx] === WALL,
-  );
-  if (validCorners.length > 0) {
-    const cols = instancedFromCells(getDungeonTemplate('Column_Round'), validCorners);
+  if (interiorCorners.length > 0) {
+    const cols = instancedFromCells(getDungeonTemplate('Column_Round'), interiorCorners, -0.05);
     cols.receiveShadow = true;
     state.dungeonGroup.add(cols);
   }
@@ -211,15 +214,21 @@ export function buildDungeonMesh() {
     if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
     if (state.dungeon[wz][wx] !== WALL) continue;
 
+    // Mount the torch on the room-facing edge of the wall cell, ~1.2m
+    // up the wall (chest height). The bracket's "back" sits flush with
+    // the wall surface so it sticks into the room, not into the wall.
     const torchMesh = instantiateDungeonProp('Torch_wall');
-    torchMesh.position.set(wx * CELL, 0, wz * CELL);
-    torchMesh.rotation.y = Math.atan2(-dx, -dz); // bracket faces the room
+    torchMesh.position.set(
+      wx * CELL - dx * (CELL * 0.5 - 0.05),
+      1.2,
+      wz * CELL - dz * (CELL * 0.5 - 0.05),
+    );
+    torchMesh.rotation.y = Math.atan2(-dx, -dz);
     state.dungeonGroup.add(torchMesh);
 
-    // Light source nudged ~0.5m inside the room from the wall so the room
-    // actually gets lit (a light right inside a wall illuminates nothing).
+    // PointLight slightly further out so the room actually gets lit.
     const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
-    torch.position.set(wx * CELL - dx * 0.5, 1.6, wz * CELL - dz * 0.5);
+    torch.position.set(wx * CELL - dx * 0.6, 1.7, wz * CELL - dz * 0.6);
     torch.userData.flicker = Math.random() * Math.PI * 2;
     torch.userData.baseIntensity = 1.6;
     state.dungeonGroup.add(torch);
@@ -238,9 +247,15 @@ export function buildDungeonMesh() {
     const wx = cellX + dx, wz = cellZ + dz;
     if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
     if (state.dungeon[wz][wx] !== WALL) continue;
+    // Hang the banner on the room-facing edge of the wall, raised so
+    // the top sits high near the ceiling (~3 m).
     const flag = instantiateDungeonProp('Flag_Wall');
-    flag.position.set(wx * CELL, 0, wz * CELL);
-    flag.rotation.y = Math.atan2(-dx, -dz); // face into the room
+    flag.position.set(
+      wx * CELL - dx * (CELL * 0.5 - 0.05),
+      1.4,
+      wz * CELL - dz * (CELL * 0.5 - 0.05),
+    );
+    flag.rotation.y = Math.atan2(-dx, -dz);
     state.dungeonGroup.add(flag);
     flagsPlaced++;
   }
