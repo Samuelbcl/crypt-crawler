@@ -1,7 +1,17 @@
 // All sound effects synthesized via Web Audio API — zero asset files.
 // Call audioInit() after the first user gesture (browsers require it).
 
+const VOLUME_KEY = 'cryptCrawler.volume';
+
 let actx = null;
+let _masterVolume = (() => {
+  try {
+    const raw = localStorage.getItem(VOLUME_KEY);
+    if (raw === null) return 0.6;
+    const v = parseFloat(raw);
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.6;
+  } catch (_) { return 0.6; }
+})();
 
 export function audioInit() {
   if (actx) return;
@@ -12,8 +22,17 @@ export function audioInit() {
   }
 }
 
+export function getMasterVolume() {
+  return _masterVolume;
+}
+
+export function setMasterVolume(v) {
+  _masterVolume = Math.min(1, Math.max(0, v));
+  try { localStorage.setItem(VOLUME_KEY, String(_masterVolume)); } catch (_) {}
+}
+
 function blip(freq, dur = 0.1, type = 'sine', vol = 0.15, slide = 0) {
-  if (!actx) return;
+  if (!actx || _masterVolume <= 0) return;
   const t0 = actx.currentTime;
   const osc = actx.createOscillator();
   const gain = actx.createGain();
@@ -22,7 +41,7 @@ function blip(freq, dur = 0.1, type = 'sine', vol = 0.15, slide = 0) {
   if (slide) {
     osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + dur);
   }
-  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.setValueAtTime(vol * _masterVolume, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
   osc.connect(gain).connect(actx.destination);
   osc.start(t0);
@@ -30,7 +49,7 @@ function blip(freq, dur = 0.1, type = 'sine', vol = 0.15, slide = 0) {
 }
 
 function noiseHit(dur = 0.15, vol = 0.2) {
-  if (!actx) return;
+  if (!actx || _masterVolume <= 0) return;
   const t0 = actx.currentTime;
   const buf = actx.createBuffer(1, actx.sampleRate * dur, actx.sampleRate);
   const data = buf.getChannelData(0);
@@ -40,7 +59,7 @@ function noiseHit(dur = 0.15, vol = 0.2) {
   const src = actx.createBufferSource();
   src.buffer = buf;
   const gain = actx.createGain();
-  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.setValueAtTime(vol * _masterVolume, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
   const filt = actx.createBiquadFilter();
   filt.type = 'lowpass';

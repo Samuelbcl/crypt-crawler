@@ -82,7 +82,19 @@
     <button class="btn" id="btn-victory">↻ REJOUER</button>
   </div>
 
-  <div id="pause-hint" class="hidden">⏸ PAUSE</div>
+  <!-- Pause menu -->
+  <div id="pause-menu" class="overlay hidden">
+    <h2>⏸ PAUSE</h2>
+    <div class="score-line">Étage <span class="val" id="pm-floor">1</span></div>
+    <div class="volume-row">
+      <label for="pm-volume">🔊 Volume</label>
+      <input type="range" id="pm-volume" min="0" max="100" value="60">
+      <span id="pm-volume-val">60%</span>
+    </div>
+    <button class="btn" id="btn-resume">▶ REPRENDRE</button>
+    <button class="btn btn-secondary" id="btn-restart">↻ RECOMMENCER LE RUN</button>
+    <button class="btn btn-secondary" id="btn-quit-menu">⏏ MENU PRINCIPAL</button>
+  </div>
 
   <script type="module" src="/src/main.js"></script>
 </body>

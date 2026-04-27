@@ -20,6 +20,16 @@ import { instantiate, playOnly } from './assets.js';
 const MODEL_FORWARD_OFFSET = 0;
 const PLAYER_SCALE = 0.55;
 
+// Body rotation speed in radians/second. ~12 means a 180° flip takes ~0.26s,
+// snappy without feeling jittery on diagonal direction changes.
+const TURN_SPEED = 12;
+
+function shortestAngleDelta(from, to) {
+  let d = (to - from + Math.PI) % (2 * Math.PI);
+  if (d < 0) d += 2 * Math.PI;
+  return d - Math.PI;
+}
+
 export function buildPlayer() {
   const g = new THREE.Group();
 
@@ -70,7 +80,7 @@ export function updatePlayer(dt) {
   state.pDash.cd = Math.max(0, state.pDash.cd - dt);
   state.pInvuln = Math.max(0, state.pInvuln - dt);
 
-  // Aim toward mouse on ground plane
+  // Aim toward mouse on ground plane (used for attack direction always)
   const target = getMouseGroundTarget();
   let aimX = 0, aimZ = -1;
   if (target) {
@@ -78,7 +88,6 @@ export function updatePlayer(dt) {
     aimZ = target.z - state.player.position.z;
     const len = Math.hypot(aimX, aimZ);
     if (len > 0.01) { aimX /= len; aimZ /= len; }
-    state.player.rotation.y = Math.atan2(aimX, aimZ);
   }
 
   // Movement input (QWERTY/AZERTY/arrows)
@@ -113,6 +122,20 @@ export function updatePlayer(dt) {
   if (state.pAttack.active) {
     state.pAttack.t -= dt;
     if (state.pAttack.t <= 0) state.pAttack.active = false;
+  }
+
+  // Body rotation: face the mouse during an attack swing (so the slash points
+  // at the cursor), otherwise face the movement direction. Standing still
+  // keeps the last facing — no auto-snap to mouse, which felt twitchy.
+  let targetYaw = null;
+  if (state.pAttack.active) {
+    targetYaw = Math.atan2(aimX, aimZ);
+  } else if (mlen > 0) {
+    targetYaw = Math.atan2(mx, mz);
+  }
+  if (targetYaw !== null) {
+    const delta = shortestAngleDelta(state.player.rotation.y, targetYaw);
+    state.player.rotation.y += delta * Math.min(1, dt * TURN_SPEED);
   }
 
   // Animation selection — priority: dash > attack > run > idle.

@@ -7,7 +7,7 @@ import { STATE, CELL, MAX_FLOOR } from './constants.js';
 
 import { initThree, updateCamera, updateTorches, disposeNode } from './scene.js';
 import { setupInput } from './input.js';
-import { audioInit, SFX } from './audio.js';
+import { audioInit, SFX, setMasterVolume } from './audio.js';
 import { preloadModels, updateMixers, releaseMixer } from './assets.js';
 
 import {
@@ -18,7 +18,7 @@ import { buildPlayer, spawnPlayer, updatePlayer } from './player.js';
 import { spawnEnemiesForFloor, updateEnemies } from './enemies.js';
 import { spawnPickupsForFloor, updatePickups, updateProjectiles } from './pickups.js';
 import { updateParticles } from './particles.js';
-import { showMenu, showHud, updateHud } from './ui.js';
+import { showMenu, showHud, updateHud, togglePause, hidePauseMenu } from './ui.js';
 
 /* ─── Run lifecycle ──────────────────────────────────────────── */
 
@@ -167,6 +167,26 @@ async function boot() {
   });
   document.getElementById('btn-retry').addEventListener('click', () => startRun());
   document.getElementById('btn-victory').addEventListener('click', () => startRun());
+
+  // Pause menu wiring
+  document.getElementById('btn-resume').addEventListener('click', togglePause);
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    hidePauseMenu();
+    startRun();
+  });
+  document.getElementById('btn-quit-menu').addEventListener('click', () => {
+    hidePauseMenu();
+    resetRun();
+    state.gameState = STATE.MENU;
+    showMenu();
+  });
+  const volSlider = document.getElementById('pm-volume');
+  const volLabel = document.getElementById('pm-volume-val');
+  volSlider.addEventListener('input', (e) => {
+    const pct = parseInt(e.target.value, 10);
+    setMasterVolume(pct / 100);
+    volLabel.textContent = pct + '%';
+  });
 
   showMenu();
   state.lastTime = performance.now() * 0.001;

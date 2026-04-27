@@ -2,7 +2,7 @@
 
 import { state, _scratchV3, saveBestFloor } from './state.js';
 import { STATE, MAX_FLOOR } from './constants.js';
-import { SFX } from './audio.js';
+import { SFX, getMasterVolume } from './audio.js';
 
 /* ─── HUD ────────────────────────────────────────────────────── */
 
@@ -36,6 +36,7 @@ export function showMenu() {
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
   document.getElementById('victory').classList.add('hidden');
+  document.getElementById('pause-menu').classList.add('hidden');
   document.getElementById('crosshair').style.display = 'none';
   const best = document.getElementById('menu-best');
   if (state.bestFloor > 0) {
@@ -74,11 +75,26 @@ export function showVictory() {
 export function togglePause() {
   if (state.gameState === STATE.PLAYING) {
     state.gameState = STATE.PAUSED;
-    document.getElementById('pause-hint').classList.remove('hidden');
+    showPauseMenu();
   } else if (state.gameState === STATE.PAUSED) {
     state.gameState = STATE.PLAYING;
-    document.getElementById('pause-hint').classList.add('hidden');
+    document.getElementById('pause-menu').classList.add('hidden');
   }
+}
+
+function showPauseMenu() {
+  document.getElementById('pm-floor').textContent =
+    state.pFloor === MAX_FLOOR ? 'Boss' : state.pFloor;
+  // Sync slider with current persisted volume.
+  const pct = Math.round(getMasterVolume() * 100);
+  const slider = document.getElementById('pm-volume');
+  slider.value = pct;
+  document.getElementById('pm-volume-val').textContent = pct + '%';
+  document.getElementById('pause-menu').classList.remove('hidden');
+}
+
+export function hidePauseMenu() {
+  document.getElementById('pause-menu').classList.add('hidden');
 }
 
 /* ─── VICTORY TRIGGER (called by combat.js) ──────────────────── */

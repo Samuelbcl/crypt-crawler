@@ -11,7 +11,7 @@ import { togglePause } from './ui.js';
 export function setupInput() {
   document.addEventListener('keydown', (e) => {
     state.keys[e.key.toLowerCase()] = true;
-    if (e.key.toLowerCase() === 'p') togglePause();
+    if (e.key.toLowerCase() === 'p' || e.key === 'Escape') togglePause();
     if (e.code === 'Space' && state.gameState === STATE.PLAYING) tryDash();
   });
 
