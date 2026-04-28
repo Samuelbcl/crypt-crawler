@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { state } from './state.js';
 import { GRID_SIZE, CELL, WALL, FLOOR, STAIRS } from './constants.js';
 import { getDungeonTemplate, instantiateDungeonProp } from './assets.js';
+import { getTheme, pickRandomTheme } from './themes.js';
 
 /* ─── GENERATION ─────────────────────────────────────────────── */
 
@@ -64,6 +65,14 @@ export function generateDungeon(floor) {
   const target2 = (last !== state.rooms[0]) ? last : state.rooms[0];
   state.dungeon[target2.cz][target2.cx] = STAIRS;
   state.stairsPos = { x: target2.cx * CELL, z: target2.cz * CELL };
+
+  // Tag every room with a hand-designed theme. Start room stays empty so
+  // the player gets a calm intro; the stairs/boss room gets the "throne"
+  // treatment for that "you've arrived" feeling. All others roll random
+  // among the themes whose minSize fits.
+  for (const r of state.rooms) r.theme = pickRandomTheme(r);
+  if (state.rooms.length > 0) state.rooms[0].theme = 'empty';
+  state.rooms[state.rooms.indexOf(target2)].theme = 'throne_room';
 }
 
 function carveCorridor(ax, az, bx, bz) {
@@ -236,126 +245,151 @@ export function buildDungeonMesh() {
     state.dungeonGroup.add(sG);
   }
 
-  /* ── Torches: hung on a wall facing into a room. Each placement is a
-        decorative mesh + a flickering PointLight just inside the room. */
-  const numTorches = Math.min(12, Math.floor(state.rooms.length * 1.5));
-  let torchesPlaced = 0;
-  for (let attempt = 0; attempt < numTorches * 3 && torchesPlaced < numTorches; attempt++) {
-    const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
-    const cellX = r.x + Math.floor(Math.random() * r.w);
-    const cellZ = r.z + Math.floor(Math.random() * r.h);
-    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+  /* ── Apply each room's hand-designed theme. Torches, banners, and
+        every prop are now decided by themes.js per room. */
+  for (const r of state.rooms) placeTheme(r);
+
+  state.scene.add(state.dungeonGroup);
+}
+
+// Mounts a prop on the room-facing edge of an adjacent wall cell.
+// `edge` is { wx, wz, dx, dz } where (wx, wz) is the wall cell and
+// (dx, dz) is the direction FROM the floor to that wall.
+function placeAtWallEdge(name, edge, y) {
+  const prop = instantiateDungeonProp(name);
+  prop.position.set(
+    edge.wx * CELL - edge.dx * (CELL * 0.5 - 0.05),
+    y,
+    edge.wz * CELL - edge.dz * (CELL * 0.5 - 0.05),
+  );
+  prop.rotation.y = Math.atan2(-edge.dx, -edge.dz);
+  state.dungeonGroup.add(prop);
+}
+
+/* ─── Theme application ──────────────────────────────────────── */
+
+function applyRotation(prop, rotKind, opts = {}) {
+  if (rotKind === 'random') {
+    prop.rotation.y = Math.random() * Math.PI * 2;
+  } else if (rotKind === 'align') {
+    // Snap to a cardinal axis aligned with the room (carpets, runners).
+    prop.rotation.y = (opts.roomLong === 'x') ? Math.PI / 2 : 0;
+  } else if (rotKind === 'cornerOut') {
+    // Face from the corner toward the room centre — used for tall props
+    // tucked into corners (bookcases, candelabras) so their fronts are
+    // visible from the middle of the room.
+    prop.rotation.y = Math.atan2(opts.dirToCentreX || 0, opts.dirToCentreZ || 0);
+  }
+  // 'none' or unknown → leave rotation at 0
+}
+
+function placeTheme(room) {
+  const theme = getTheme(room.theme);
+  const roomLong = (room.w >= room.h) ? 'x' : 'z';
+
+  // Pre-shuffle the floor cells so multiple "scattered" placements don't
+  // pile on the same cell.
+  const innerCells = [];
+  for (let dz = 0; dz < room.h; dz++) {
+    for (let dx = 0; dx < room.w; dx++) {
+      innerCells.push([room.x + dx, room.z + dz]);
+    }
+  }
+  for (let i = innerCells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [innerCells[i], innerCells[j]] = [innerCells[j], innerCells[i]];
+  }
+  let cellCursor = 0;
+  function nextCell() {
+    if (cellCursor >= innerCells.length) return null;
+    return innerCells[cellCursor++];
+  }
+
+  // Interior corner cells of the room (always 4, in TL TR BL BR order).
+  const corners = [
+    [room.x,             room.z,             +1, +1],
+    [room.x + room.w - 1,room.z,             -1, +1],
+    [room.x,             room.z + room.h - 1,+1, -1],
+    [room.x + room.w - 1,room.z + room.h - 1,-1, -1],
+  ];
+
+  /* ── Floor placements (centerpiece, corners, scattered, etc.) ── */
+  for (const p of theme.placements) {
+    const count = p.count ?? 1;
+    if (p.where === 'center') {
+      const prop = instantiateDungeonProp(p.type);
+      prop.position.set(room.cx * CELL, 0, room.cz * CELL);
+      applyRotation(prop, p.rot, { roomLong });
+      state.dungeonGroup.add(prop);
+
+    } else if (p.where === 'centerLine') {
+      // For carpets / runners — single prop centred but aligned along
+      // the long axis of the room.
+      const prop = instantiateDungeonProp(p.type);
+      prop.position.set(room.cx * CELL, 0, room.cz * CELL);
+      applyRotation(prop, p.rot, { roomLong });
+      state.dungeonGroup.add(prop);
+
+    } else if (p.where === 'corners') {
+      // Drop one prop per interior corner, up to `count`.
+      for (let i = 0; i < count && i < corners.length; i++) {
+        const [cx, cz, dirX, dirZ] = corners[i];
+        const prop = instantiateDungeonProp(p.type);
+        prop.position.set(cx * CELL, 0, cz * CELL);
+        applyRotation(prop, p.rot, { dirToCentreX: dirX, dirToCentreZ: dirZ });
+        state.dungeonGroup.add(prop);
+      }
+
+    } else if (p.where === 'scattered') {
+      for (let i = 0; i < count; i++) {
+        const cell = nextCell();
+        if (!cell) break;
+        const [cx, cz] = cell;
+        const prop = instantiateDungeonProp(p.type);
+        prop.position.set(cx * CELL, 0, cz * CELL);
+        applyRotation(prop, p.rot);
+        state.dungeonGroup.add(prop);
+      }
+    }
+  }
+
+  /* ── Wall-mounted props (banners / torches / windows) ────────── */
+  for (const wm of (theme.wallMounted || [])) {
+    let placed = 0;
+    for (let attempt = 0; attempt < wm.count * 4 && placed < wm.count; attempt++) {
+      const edge = findEdgeOnRoom(room);
+      if (!edge) break;
+      const isTorch = (wm.type === 'Torch_wall');
+      const yMount = isTorch ? 1.2 : (wm.type === 'Window_Open' ? 1.5 : 1.4);
+      placeAtWallEdge(wm.type, edge, yMount);
+      // Torches also drop a flickering point light in the room.
+      if (isTorch) addTorchLightForEdge(edge);
+      placed++;
+    }
+  }
+}
+
+// Same pattern as the global helper but constrained to a specific room.
+function findEdgeOnRoom(room, attempts = 8) {
+  const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+  for (let a = 0; a < attempts; a++) {
+    const cellX = room.x + Math.floor(Math.random() * room.w);
+    const cellZ = room.z + Math.floor(Math.random() * room.h);
     const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
     const wx = cellX + dx, wz = cellZ + dz;
     if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
     if (state.dungeon[wz][wx] !== WALL) continue;
-
-    // Mount the torch on the room-facing edge of the wall cell, ~1.2m
-    // up the wall (chest height). The bracket's "back" sits flush with
-    // the wall surface so it sticks into the room, not into the wall.
-    const torchMesh = instantiateDungeonProp('Torch_wall');
-    torchMesh.position.set(
-      wx * CELL - dx * (CELL * 0.5 - 0.05),
-      1.2,
-      wz * CELL - dz * (CELL * 0.5 - 0.05),
-    );
-    torchMesh.rotation.y = Math.atan2(-dx, -dz);
-    state.dungeonGroup.add(torchMesh);
-
-    // PointLight slightly further out so the room actually gets lit.
-    const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
-    torch.position.set(wx * CELL - dx * 0.6, 1.7, wz * CELL - dz * 0.6);
-    torch.userData.flicker = Math.random() * Math.PI * 2;
-    torch.userData.baseIntensity = 1.6;
-    state.dungeonGroup.add(torch);
-
-    torchesPlaced++;
+    return { wx, wz, dx, dz };
   }
+  return null;
+}
 
-  /* ── Helper: try to find a (cellX, cellZ, dx, dz) where (cellX, cellZ)
-        is a floor cell in some room and (cellX+dx, cellZ+dz) is a wall.
-        Returns null if no candidate is found in `attempts` tries. */
-  function findWallEdgeInARoom(attempts = 8) {
-    const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-    for (let a = 0; a < attempts; a++) {
-      const r = state.rooms[Math.floor(Math.random() * state.rooms.length)];
-      const cellX = r.x + Math.floor(Math.random() * r.w);
-      const cellZ = r.z + Math.floor(Math.random() * r.h);
-      const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
-      const wx = cellX + dx, wz = cellZ + dz;
-      if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
-      if (state.dungeon[wz][wx] !== WALL) continue;
-      return { wx, wz, dx, dz };
-    }
-    return null;
-  }
-
-  function placeAtWallEdge(name, edge, y) {
-    const prop = instantiateDungeonProp(name);
-    prop.position.set(
-      edge.wx * CELL - edge.dx * (CELL * 0.5 - 0.05),
-      y,
-      edge.wz * CELL - edge.dz * (CELL * 0.5 - 0.05),
-    );
-    prop.rotation.y = Math.atan2(-edge.dx, -edge.dz);
-    state.dungeonGroup.add(prop);
-  }
-
-  /* ── Wall flags / banners (Flag_Wall + Flag_Wall2 for variety) ── */
-  const flagTypes = ['Flag_Wall', 'Flag_Wall2'];
-  for (let placed = 0; placed < 5; ) {
-    const edge = findWallEdgeInARoom();
-    if (!edge) break;
-    placeAtWallEdge(flagTypes[Math.floor(Math.random() * flagTypes.length)], edge, 1.4);
-    placed++;
-  }
-
-  /* ── Windows — rare, atmospheric (~2 per floor) ──────────────── */
-  for (let placed = 0; placed < 2; ) {
-    const edge = findWallEdgeInARoom();
-    if (!edge) break;
-    placeAtWallEdge('Window_Open', edge, 1.5);
-    placed++;
-  }
-
-  /* ── Centerpiece per non-start room (statue or carpet, sometimes) ── */
-  const centerpieces = ['Statue_Stag', 'Statue_Fox', 'Carpet'];
-  for (let i = 1; i < state.rooms.length; i++) {
-    const r = state.rooms[i];
-    if (r.w < 3 || r.h < 3) continue;
-    if (Math.random() > 0.45) continue;
-    const type = centerpieces[Math.floor(Math.random() * centerpieces.length)];
-    const prop = instantiateDungeonProp(type);
-    prop.position.set(r.cx * CELL, 0, r.cz * CELL);
-    prop.rotation.y = (type === 'Carpet')
-      ? (Math.random() < 0.5 ? 0 : Math.PI / 2)  // carpet aligned to room
-      : Math.random() * Math.PI * 2;
-    state.dungeonGroup.add(prop);
-  }
-
-  /* ── Furniture — bookcases / candelabras / chests / barrels.
-        Tall props look best lined up against a wall; small clutter
-        looks fine anywhere. We pick a random cell in the room and a
-        random rotation. Each non-start room gets 1-3 props. */
-  const tallProps  = ['Bookcase_Full', 'Bookcase_Empty', 'Candelabrum_tall', 'Candelabrum'];
-  const smallProps = ['Chest', 'Barrel', 'Crate', 'Pot1', 'Pot2', 'Pot3', 'Bones', 'Skull', 'Candles_1'];
-  for (let i = 1; i < state.rooms.length; i++) {
-    const r = state.rooms[i];
-    const numProps = 1 + Math.floor(Math.random() * 3);
-    for (let n = 0; n < numProps; n++) {
-      const useTall = Math.random() < 0.35;
-      const pool = useTall ? tallProps : smallProps;
-      const type = pool[Math.floor(Math.random() * pool.length)];
-      const px = r.x + Math.floor(Math.random() * r.w);
-      const pz = r.z + Math.floor(Math.random() * r.h);
-      const prop = instantiateDungeonProp(type);
-      prop.position.set(px * CELL, 0, pz * CELL);
-      prop.rotation.y = Math.random() * Math.PI * 2;
-      state.dungeonGroup.add(prop);
-    }
-  }
-
-  state.scene.add(state.dungeonGroup);
+function addTorchLightForEdge(edge) {
+  const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
+  torch.position.set(edge.wx * CELL - edge.dx * 0.6, 1.7, edge.wz * CELL - edge.dz * 0.6);
+  torch.userData.flicker = Math.random() * Math.PI * 2;
+  torch.userData.baseIntensity = 1.6;
+  state.dungeonGroup.add(torch);
 }
 
 /* ─── COLLISION ──────────────────────────────────────────────── */
