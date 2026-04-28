@@ -78,6 +78,15 @@ const DUNGEON_MODULES = {
   Candles_1:      '/dungeon/Candles_1.fbx',
 };
 
+// Y anchor per module:
+//   'bottom' (default) — shift so the bottom of the mesh sits at y=0.
+//   'top'              — shift so the TOP of the mesh sits at y=0
+//                        (used for floor tiles so player feet at y=0
+//                         aren't clipped by the floor surface).
+const DUNGEON_ANCHORS = {
+  Floor_Standard: 'top',
+};
+
 // Target footprint (largest XZ size, in world units) that each module
 // should occupy after auto-scaling. Walls/floors fill exactly one cell
 // (CELL = 2). Props are smaller. Stairs span a bit more than a cell.
@@ -138,15 +147,19 @@ function loadOneDungeon(name, url) {
         }
       });
 
-      let fitScale = 1, minY = 0;
+      let fitScale = 1, yShift = 0;
       if (geometry) {
         geometry.computeBoundingBox();
-        // Some modules are modelled centred on origin (bottom below
-        // y=0); shift so the bottom touches y=0 — keeps walls / props
-        // sitting on the floor instead of half-buried.
-        minY = geometry.boundingBox.min.y;
-        if (minY < -0.001) {
-          geometry.translate(0, -minY, 0);
+        // 'top'    → align the top face of the mesh to y=0 (used for
+        //            floor tiles so player feet at y=0 aren't clipped).
+        // 'bottom' → align the bottom of the mesh to y=0 (everything
+        //            else: walls, columns, props sit on the floor).
+        const anchor = DUNGEON_ANCHORS[name] ?? 'bottom';
+        yShift = (anchor === 'top')
+          ? -geometry.boundingBox.max.y
+          : -geometry.boundingBox.min.y;
+        if (Math.abs(yShift) > 0.001) {
+          geometry.translate(0, yShift, 0);
           geometry.computeBoundingBox();
         }
         const size = new THREE.Vector3();
@@ -158,7 +171,7 @@ function loadOneDungeon(name, url) {
         }
       }
 
-      _dungeonCache[name] = { scene: group, geometry, material, fitScale, minY };
+      _dungeonCache[name] = { scene: group, geometry, material, fitScale, yShift };
       resolve();
     }, undefined, reject);
   });
@@ -177,18 +190,18 @@ export function getDungeonTemplate(name) {
   return { geometry: m.geometry, material: m.material, fitScale: m.fitScale };
 }
 
-// Returns a fresh clone of the loaded FBX scene with fitScale already
-// applied and the bottom anchored to y=0 — for unique props like Stairs,
-// Chest, Bookcase placed once per floor.
+// Returns a fresh clone of the loaded FBX scene with fitScale and the
+// matching yShift already applied — for unique props (Stairs, Chest,
+// Bookcase…) placed once per floor.
 export function instantiateDungeonProp(name) {
   const m = _dungeonCache[name];
   if (!m) throw new Error('Dungeon module not preloaded: ' + name);
   const clone = m.scene.clone(true);
   clone.scale.setScalar(m.fitScale);
-  // The InstancedMesh path bakes the y-shift into a cloned geometry, but
-  // the prop-clone path renders the original group, so we have to
-  // counter-translate by the (rotated, unscaled) bottom to lift it.
-  if (m.minY < 0) clone.position.y = -m.minY * m.fitScale;
+  // The InstancedMesh path bakes yShift into the cloned geometry; the
+  // prop-clone path renders the original group, so we mirror the same
+  // shift on the clone's position (scaled to match).
+  clone.position.y = m.yShift * m.fitScale;
   clone.traverse((o) => {
     if (o.isMesh) {
       o.castShadow = true;

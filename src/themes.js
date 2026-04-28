@@ -5,6 +5,10 @@
 // Placement vocabulary:
 //   center       — exactly at the room centre cell
 //   centerLine   — along the central axis of the room (useful for carpets)
+//   longEnd      — offset from centre along the room's long axis
+//                  (`offset` cells; clamped to the room bounds). Useful
+//                  for placing a centrepiece without overlapping a fixed
+//                  centre object like the stairs.
 //   corners      — the four interior corner floor cells
 //   wallMounted  — on a random room-facing wall edge (banners, torches,
 //                  windows). `count` controls how many are placed.
@@ -18,6 +22,23 @@
 // Each prop name must exist in DUNGEON_MODULES (assets.js).
 
 const T = {
+  /* ── Stairs Throne — the room that owns the descending staircase.
+     The stairs are auto-placed at room.cx, room.cz, so we offset the
+     statue 2 cells along the long axis so it doesn't clip the stairs.
+     No carpet (would overlap the stairs cell). Brightly lit. */
+  stairs_throne: {
+    minW: 4, minH: 4,
+    placements: [
+      { type: 'Statue_Stag',     where: 'longEnd', offset: 2, rot: 'random' },
+      { type: 'Candelabrum_tall',where: 'corners',           rot: 'random' },
+    ],
+    wallMounted: [
+      { type: 'Flag_Wall',  count: 2 },
+      { type: 'Flag_Wall2', count: 1 },
+      { type: 'Torch_wall', count: 4 },
+    ],
+  },
+
   /* ── Throne Room ─────────────────────────────────────────────
      Centerpiece: stag statue with a long carpet leading to it.
      Lavish: many banners, torches at every corner of the walls. */

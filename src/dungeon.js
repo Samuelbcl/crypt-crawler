@@ -67,12 +67,12 @@ export function generateDungeon(floor) {
   state.stairsPos = { x: target2.cx * CELL, z: target2.cz * CELL };
 
   // Tag every room with a hand-designed theme. Start room stays empty so
-  // the player gets a calm intro; the stairs/boss room gets the "throne"
-  // treatment for that "you've arrived" feeling. All others roll random
-  // among the themes whose minSize fits.
+  // the player gets a calm intro; the stairs room uses the dedicated
+  // "stairs_throne" theme that offsets the statue so it doesn't clip the
+  // staircase. All others roll random among the themes whose minSize fits.
   for (const r of state.rooms) r.theme = pickRandomTheme(r);
   if (state.rooms.length > 0) state.rooms[0].theme = 'empty';
-  state.rooms[state.rooms.indexOf(target2)].theme = 'throne_room';
+  state.rooms[state.rooms.indexOf(target2)].theme = 'stairs_throne';
 }
 
 function carveCorridor(ax, az, bx, bz) {
@@ -327,6 +327,22 @@ function placeTheme(room) {
       // the long axis of the room.
       const prop = instantiateDungeonProp(p.type);
       prop.position.set(room.cx * CELL, 0, room.cz * CELL);
+      applyRotation(prop, p.rot, { roomLong });
+      state.dungeonGroup.add(prop);
+
+    } else if (p.where === 'longEnd') {
+      // Offset from the room centre along the long axis by `offset`
+      // cells (default 2), clamped to the room interior. Used by the
+      // stairs room to push the statue off the staircase cell.
+      const off = p.offset ?? 2;
+      let cx = room.cx, cz = room.cz;
+      if (roomLong === 'x') {
+        cx = Math.min(room.x + room.w - 1, Math.max(room.x, room.cx + off));
+      } else {
+        cz = Math.min(room.z + room.h - 1, Math.max(room.z, room.cz + off));
+      }
+      const prop = instantiateDungeonProp(p.type);
+      prop.position.set(cx * CELL, 0, cz * CELL);
       applyRotation(prop, p.rot, { roomLong });
       state.dungeonGroup.add(prop);
 
