@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypt Crawler — Theme Editor</title>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="title">⚔ THEME EDITOR</div>
+    <a class="back-link" href="./">← retour au jeu</a>
+  </header>
+
+  <main class="editor-grid">
+
+    <!-- Left column: theme settings + placements -->
+    <section class="panel" id="panel-settings">
+      <h2>Réglages</h2>
+      <label>Nom du thème
+        <input type="text" id="theme-name" value="my_theme">
+      </label>
+      <div class="row">
+        <label>minW
+          <input type="number" id="min-w" min="2" max="10" value="4">
+        </label>
+        <label>minH
+          <input type="number" id="min-h" min="2" max="10" value="4">
+        </label>
+      </div>
+
+      <h2>Placements (sol)</h2>
+      <div id="placements-list"></div>
+      <button class="add-btn" id="add-placement">+ Ajouter un placement</button>
+
+      <h2>Wall-mounted (mur)</h2>
+      <div id="wallmounted-list"></div>
+      <button class="add-btn" id="add-wallmounted">+ Ajouter un wall mount</button>
+    </section>
+
+    <!-- Right column: preview + JSON -->
+    <section class="panel" id="panel-preview">
+      <h2>Aperçu (top-down)</h2>
+      <div id="preview-grid"></div>
+      <p class="preview-legend">
+        <span class="legend-item">. <em>sol</em></span>
+        <span class="legend-item">▓ <em>mur</em></span>
+        <span class="legend-item">D <em>centre</em></span>
+      </p>
+
+      <h2>JSON du thème</h2>
+      <textarea id="json-output" rows="14" spellcheck="false"></textarea>
+      <div class="row">
+        <button id="btn-copy">📋 Copier dans presse-papier</button>
+        <button id="btn-load">📥 Charger depuis textarea</button>
+      </div>
+      <p class="hint">Colle ce JSON dans <code>src/themes.js</code> sous le nom de ta clé.</p>
+    </section>
+
+  </main>
+
+  <script type="module" src="/src/editor/main.js"></script>
+</body>
+</html>

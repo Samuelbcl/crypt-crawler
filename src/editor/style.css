@@ -1,0 +1,206 @@
+/* ── Theme Editor — castle-themed UI matching the game palette ── */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; min-height: 100%;
+  background: #1a1410;
+  font-family: 'Trebuchet MS', sans-serif;
+  color: #ddd;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  background: rgba(15, 10, 25, 0.85);
+  border-bottom: 2px solid rgba(255,200,100,0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar .title {
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  font-size: 18px;
+  color: #ffd966;
+}
+.back-link {
+  color: #aab;
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.15s;
+}
+.back-link:hover { color: #ffd966; }
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 20px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .editor-grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: rgba(20, 15, 25, 0.7);
+  border: 1px solid rgba(255,200,100,0.25);
+  border-radius: 6px;
+  padding: 18px 20px;
+}
+
+.panel h2 {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffd966;
+  margin: 18px 0 10px;
+}
+.panel h2:first-child { margin-top: 0; }
+
+label {
+  display: block;
+  margin: 6px 0;
+  font-size: 13px;
+  color: #aab;
+}
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.row label { flex: 1; }
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  background: rgba(15, 10, 25, 0.85);
+  border: 1px solid rgba(255,200,100,0.3);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #fff;
+  font-family: 'Trebuchet MS', sans-serif;
+  font-size: 14px;
+  margin-top: 4px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus,
+textarea:focus {
+  border-color: #ffd966;
+}
+
+textarea {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+button {
+  background: rgba(15, 10, 25, 0.85);
+  border: 1px solid rgba(255,200,100,0.3);
+  border-radius: 4px;
+  padding: 8px 14px;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+}
+button:hover {
+  transform: translateY(-1px);
+  border-color: #ffd966;
+  color: #ffd966;
+}
+button.add-btn {
+  width: 100%;
+  margin-top: 8px;
+  border-style: dashed;
+  color: #aab;
+}
+button.add-btn:hover {
+  color: #ffd966;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 60px 28px;
+  gap: 6px;
+  align-items: center;
+  background: rgba(15, 10, 25, 0.5);
+  border: 1px solid rgba(255,200,100,0.15);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+}
+.entry select,
+.entry input[type="number"] {
+  margin-top: 0;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.entry button.remove {
+  padding: 4px 6px;
+  border: 1px solid rgba(255,80,80,0.4);
+  color: #ff8888;
+  font-size: 14px;
+  line-height: 1;
+}
+.entry button.remove:hover {
+  background: rgba(255,80,80,0.15);
+  color: #ff5555;
+}
+.entry-wall {
+  grid-template-columns: 1fr 60px 28px;
+}
+
+#preview-grid {
+  display: inline-grid;
+  gap: 2px;
+  background: rgba(0,0,0,0.4);
+  padding: 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.cell {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(74, 62, 48, 0.6);
+  border-radius: 2px;
+  user-select: none;
+}
+.cell.wall {
+  background: rgba(60, 50, 40, 0.9);
+  color: #6a5a48;
+}
+.preview-legend {
+  font-size: 11px;
+  color: #aab;
+  margin-bottom: 14px;
+}
+.preview-legend .legend-item {
+  margin-right: 14px;
+}
+
+.hint {
+  font-size: 11px;
+  color: #aab;
+  margin-top: 8px;
+  font-style: italic;
+}
+.hint code {
+  color: #ffd966;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
