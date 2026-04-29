@@ -22,7 +22,7 @@ function shortestAngleDelta(from, to) {
 }
 
 function currentClass() {
-  return CLASSES[state.pClassKey] || CLASSES.warrior;
+  return CLASSES[state.run.classKey] || CLASSES.warrior;
 }
 
 export function buildPlayer() {
@@ -46,7 +46,7 @@ export function buildPlayer() {
   g.userData.actions = actions;
   g.userData.light = pl;
   g.userData.currentAnim = null;
-  g.userData.classKey = state.pClassKey;
+  g.userData.classKey = state.run.classKey;
 
   setAnim(g, cls.anims.idle);
   return g;
@@ -79,8 +79,8 @@ export function updatePlayer(dt) {
   if (!state.player) return;
   const cls = currentClass();
   const atkDur = cls.attack.dur;
-  const atkCd  = cls.attack.cd  * (state.pStats.atkCdMul  || 1);
-  const dashCd = DASH_COOLDOWN  * (state.pStats.dashCdMul || 1);
+  const atkCd  = cls.attack.cd  * (state.run.stats.atkCdMul  || 1);
+  const dashCd = DASH_COOLDOWN  * (state.run.stats.dashCdMul || 1);
 
   state.pAttack.cd = Math.max(0, state.pAttack.cd - dt);
   state.pDash.cd = Math.max(0, state.pDash.cd - dt);
@@ -112,7 +112,7 @@ export function updatePlayer(dt) {
     if (state.pDash.t <= 0) state.pDash.active = false;
     state.pInvuln = Math.max(state.pInvuln, 0.05);
   } else if (mlen > 0) {
-    const speed = 5.5 * state.pStats.spd;
+    const speed = 5.5 * state.run.stats.spd;
     moveWithCollide(state.player, mx * speed * dt, mz * speed * dt, 0.35);
   }
   state.player.position.y = 0;
@@ -179,7 +179,7 @@ export function playPlayerDeath() {
 
 export function tryDash() {
   if (state.pDash.cd > 0 || state.pDash.active) return;
-  const dashCd = DASH_COOLDOWN * (state.pStats.dashCdMul || 1);
+  const dashCd = DASH_COOLDOWN * (state.run.stats.dashCdMul || 1);
 
   let mx = 0, mz = 0;
   if (state.keys['w'] || state.keys['z'] || state.keys['arrowup']) mz -= 1;
@@ -214,8 +214,8 @@ export function tryDash() {
 
 function doAttack(aimX, aimZ) {
   const cls = currentClass();
-  const range = cls.attack.range + (state.pStats.atkRangeAdd || 0);
-  const arc   = cls.attack.arc   * (state.pStats.atkArcMul   || 1);
+  const range = cls.attack.range + (state.run.stats.atkRangeAdd || 0);
+  const arc   = cls.attack.arc   * (state.run.stats.atkArcMul   || 1);
   for (const e of state.enemies) {
     const dx = e.position.x - state.player.position.x;
     const dz = e.position.z - state.player.position.z;
@@ -226,7 +226,7 @@ function doAttack(aimX, aimZ) {
     const dot = ex * aimX + ez * aimZ;
     const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
     if (angle <= arc * 0.5) {
-      damageEnemy(e, state.pStats.atk);
+      damageEnemy(e, state.run.stats.atk);
     }
   }
   // Visual swing trail

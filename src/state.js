@@ -1,5 +1,12 @@
 // Single mutable game state object, imported and mutated by other modules.
 // Pragmatic approach for a small game; avoids passing huge contexts around.
+//
+// Two zones inside `state`:
+//   • state.run        — the only fully serializable surface. Holds the seed,
+//                        RNG counter, floor, stats, boons, etc. This is what
+//                        save/load/replays read and write.
+//   • everything else  — Three.js refs, input, UI flags, ephemeral world
+//                        objects. Reconstructible from run + assets at load.
 
 import * as THREE from 'three';
 import { STATE, CLASSES, DIFFICULTIES } from './constants.js';
@@ -43,20 +50,54 @@ export function saveBestFloor(floor) {
   try { localStorage.setItem(BEST_FLOOR_KEY, String(floor)); } catch (_) {}
 }
 
+// Factory for a fresh, empty run. Called by resetRun() in main.js.
+export function createRun() {
+  return {
+    // RNG — seeded at run start; rngState advances on every rng() call.
+    seed: 0,
+    rngState: 0,
+    // Progress
+    floor: 1,
+    // Snapshot of menu selections at run start (so a loaded save still
+    // plays the class/difficulty the run was recorded with, even if the
+    // menu preference has since changed).
+    classKey: 'warrior',
+    difficultyKey: 'medium',
+    // Stats live here (was state.pStats)
+    stats: null,
+    // Boons taken this run (was state.activeBoons)
+    boons: [],
+    // Flow gates (were state.pendingBoon / state.pFloorTransitioning)
+    pendingBoon: false,
+    transitioning: false,
+  };
+}
+
+// Round-trip helpers — anything that wants to persist a run goes through
+// these. JSON.stringify-safe: state.run holds only primitives + arrays of
+// primitives + plain objects. Throw if someone slipped a Three.js ref in.
+export function serializeRun() {
+  return JSON.stringify(state.run);
+}
+
+export function deserializeRun(json) {
+  const r = JSON.parse(json);
+  state.run = Object.assign(createRun(), r);
+}
+
 export const state = {
   // ── Game flow ────────────────────────────
   gameState: STATE.MENU,
-  pFloor: 1,
   bestFloor: loadBestFloor(),
   totalKills: 0,
   totalGold: 0,
 
-  // ── Class, difficulty & boons ────────────
-  pClassKey: loadClassKey(),     // current class (persisted)
-  pDifficultyKey: loadDifficultyKey(), // 'easy' / 'medium' / 'hard' (persisted)
-  activeBoons: [],               // ids of boons already picked this run
-  pendingBoon: false,            // true when a boon overlay must be resolved before stairs work
-  pFloorTransitioning: false,    // true while the next-floor rebuild is queued (prevents re-entry)
+  // ── Menu / persistent preferences ────────
+  pClassKey: loadClassKey(),
+  pDifficultyKey: loadDifficultyKey(),
+
+  // ── Run state (serializable) ─────────────
+  run: createRun(),
 
   // ── World ────────────────────────────────
   dungeon: [],            // 2D array of cell types
@@ -68,7 +109,6 @@ export const state = {
 
   // ── Player ───────────────────────────────
   player: null,           // THREE.Group (with userData.sword, userData.light)
-  pStats: null,           // {hp, maxHp, atk, spd, gold, kills}
   pAttack: { active: false, t: 0, cd: 0 },
   pDash:   { active: false, t: 0, cd: 0, dirX: 0, dirZ: 0 },
   pInvuln: 0,

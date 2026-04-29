@@ -11,6 +11,7 @@ import { spawnParticles } from './particles.js';
 import { showDmgNumber } from './ui.js';
 import { disposeNode } from './scene.js';
 import { MAX_FLOOR } from './constants.js';
+import { rng } from './utils/rng.js';
 
 /* ─── PICKUPS ────────────────────────────────────────────────── */
 
@@ -57,6 +58,8 @@ export function makePickup(type, x, z) {
   g.add(pl);
 
   g.position.set(x, 0, z);
+  // Cosmetic bobbing phase — kept on Math.random so two seeds don't bob in
+  // visible lockstep.
   g.userData = { type, mesh, baseY: 0.6, t: Math.random() * Math.PI * 2 };
   return g;
 }
@@ -65,15 +68,15 @@ export function makePickup(type, x, z) {
 // Floor 5 (boss room) is excluded — only one room there, no intermediate
 // space to drop pickups in.
 function guaranteedHearts(floor) {
-  const diffKey = state.pDifficultyKey || 'medium';
+  const diffKey = state.run.difficultyKey || 'medium';
   const base = (diffKey === 'easy') ? 2 : 1;
   const bump = (floor >= 3) ? 1 : 0;
   return Math.min(3, base + bump);
 }
 
 function placeAtRandomCell(r, type) {
-  const cellX = r.x + Math.floor(Math.random() * r.w);
-  const cellZ = r.z + Math.floor(Math.random() * r.h);
+  const cellX = r.x + Math.floor(rng() * r.w);
+  const cellZ = r.z + Math.floor(rng() * r.h);
   const p = makePickup(type, cellX * CELL, cellZ * CELL);
   state.pickups.push(p);
   state.scene.add(p);
@@ -90,7 +93,7 @@ export function spawnPickupsForFloor(floor) {
     const candidateRooms = state.rooms.slice(1, -1); // skip start and final
     // Shuffle candidate rooms
     for (let i = candidateRooms.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rng() * (i + 1));
       [candidateRooms[i], candidateRooms[j]] = [candidateRooms[j], candidateRooms[i]];
     }
     for (let i = 0; i < heartCount; i++) {
@@ -102,9 +105,9 @@ export function spawnPickupsForFloor(floor) {
   // Random extras (gold / sword / boots / extra heart). Only in non-start,
   // non-final rooms. Cell-centered so the pickup is always on a floor tile.
   for (let i = 1; i < state.rooms.length - 1; i++) {
-    if (Math.random() >= 0.7) continue;
+    if (rng() >= 0.7) continue;
     const r = state.rooms[i];
-    const roll = Math.random();
+    const roll = rng();
     let type;
     if (roll < 0.5) type = 'gold';
     else if (roll < 0.72) type = 'heart';
@@ -139,21 +142,21 @@ function applyPickup(p) {
   const pz = state.player.position.z;
 
   if (t === 'heart') {
-    state.pStats.hp = Math.min(state.pStats.maxHp, state.pStats.hp + 25);
+    state.run.stats.hp = Math.min(state.run.stats.maxHp, state.run.stats.hp + 25);
     SFX.heart();
     flashScreen('heal');
     showDmgNumber(px, py, pz, 25, '#66ff88');
   } else if (t === 'sword') {
-    state.pStats.atk += 4;
-    state.pStats.maxHp += 5;
-    state.pStats.hp = Math.min(state.pStats.maxHp, state.pStats.hp + 5);
+    state.run.stats.atk += 4;
+    state.run.stats.maxHp += 5;
+    state.run.stats.hp = Math.min(state.run.stats.maxHp, state.run.stats.hp + 5);
     SFX.pickup();
   } else if (t === 'boots') {
-    state.pStats.spd = Math.min(2.0, state.pStats.spd + 0.15);
+    state.run.stats.spd = Math.min(2.0, state.run.stats.spd + 0.15);
     SFX.pickup();
   } else {
-    const amt = 5 + Math.floor(Math.random() * 8);
-    state.pStats.gold += amt;
+    const amt = 5 + Math.floor(rng() * 8);
+    state.run.stats.gold += amt;
     state.totalGold += amt;
     SFX.pickup();
     showDmgNumber(px, py, pz, amt, '#ffd966');

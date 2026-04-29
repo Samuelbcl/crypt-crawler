@@ -6,6 +6,7 @@ import { state } from './state.js';
 import { GRID_SIZE, CELL, WALL, FLOOR, STAIRS } from './constants.js';
 import { getDungeonTemplate, instantiateDungeonProp } from './assets.js';
 import { getTheme, pickRandomTheme } from './themes.js';
+import { rng } from './utils/rng.js';
 
 /* ─── GENERATION ─────────────────────────────────────────────── */
 
@@ -18,10 +19,10 @@ export function generateDungeon(floor) {
   const target = 4 + Math.min(3, Math.floor(floor / 2));
   let attempts = 60;
   while (state.rooms.length < target && attempts-- > 0) {
-    const w = 4 + Math.floor(Math.random() * 4);
-    const h = 4 + Math.floor(Math.random() * 4);
-    const x = 1 + Math.floor(Math.random() * (GRID_SIZE - w - 2));
-    const z = 1 + Math.floor(Math.random() * (GRID_SIZE - h - 2));
+    const w = 4 + Math.floor(rng() * 4);
+    const h = 4 + Math.floor(rng() * 4);
+    const x = 1 + Math.floor(rng() * (GRID_SIZE - w - 2));
+    const z = 1 + Math.floor(rng() * (GRID_SIZE - h - 2));
 
     let overlap = false;
     for (const r of state.rooms) {
@@ -48,8 +49,8 @@ export function generateDungeon(floor) {
   }
   // A couple of extra connections form loops, making layouts less linear
   for (let i = 0; i < 2 && state.rooms.length > 3; i++) {
-    const a = state.rooms[Math.floor(Math.random() * state.rooms.length)];
-    const b = state.rooms[Math.floor(Math.random() * state.rooms.length)];
+    const a = state.rooms[Math.floor(rng() * state.rooms.length)];
+    const b = state.rooms[Math.floor(rng() * state.rooms.length)];
     if (a !== b) carveCorridor(a.cx, a.cz, b.cx, b.cz);
   }
 
@@ -76,7 +77,7 @@ export function generateDungeon(floor) {
 }
 
 function carveCorridor(ax, az, bx, bz) {
-  const horizFirst = Math.random() < 0.5;
+  const horizFirst = rng() < 0.5;
   if (horizFirst) {
     for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
       state.dungeon[az][x] = (state.dungeon[az][x] === STAIRS ? STAIRS : FLOOR);
@@ -168,7 +169,7 @@ export function buildDungeonMesh() {
   const mainPlacements = [];
   const brokenPlacements = [];
   for (const p of wallPlacements) {
-    if (Math.random() < 0.07) brokenPlacements.push(p);
+    if (rng() < 0.07) brokenPlacements.push(p);
     else mainPlacements.push(p);
   }
 
@@ -270,7 +271,7 @@ function placeAtWallEdge(name, edge, y) {
 
 function applyRotation(prop, rotKind, opts = {}) {
   if (rotKind === 'random') {
-    prop.rotation.y = Math.random() * Math.PI * 2;
+    prop.rotation.y = rng() * Math.PI * 2;
   } else if (rotKind === 'align') {
     // Snap to a cardinal axis aligned with the room (carpets, runners).
     prop.rotation.y = (opts.roomLong === 'x') ? Math.PI / 2 : 0;
@@ -296,7 +297,7 @@ function placeTheme(room) {
     }
   }
   for (let i = innerCells.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [innerCells[i], innerCells[j]] = [innerCells[j], innerCells[i]];
   }
   let cellCursor = 0;
@@ -389,9 +390,9 @@ function placeTheme(room) {
 function findEdgeOnRoom(room, attempts = 8) {
   const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
   for (let a = 0; a < attempts; a++) {
-    const cellX = room.x + Math.floor(Math.random() * room.w);
-    const cellZ = room.z + Math.floor(Math.random() * room.h);
-    const [dx, dz] = dirs[Math.floor(Math.random() * 4)];
+    const cellX = room.x + Math.floor(rng() * room.w);
+    const cellZ = room.z + Math.floor(rng() * room.h);
+    const [dx, dz] = dirs[Math.floor(rng() * 4)];
     const wx = cellX + dx, wz = cellZ + dz;
     if (wx < 0 || wx >= GRID_SIZE || wz < 0 || wz >= GRID_SIZE) continue;
     if (state.dungeon[wz][wx] !== WALL) continue;
@@ -403,6 +404,8 @@ function findEdgeOnRoom(room, attempts = 8) {
 function addTorchLightForEdge(edge) {
   const torch = new THREE.PointLight(0xff8c42, 1.6, 12);
   torch.position.set(edge.wx * CELL - edge.dx * 0.6, 1.7, edge.wz * CELL - edge.dz * 0.6);
+  // Cosmetic phase — keep Math.random so two playthroughs of the same seed
+  // don't have visibly synchronised torch flicker.
   torch.userData.flicker = Math.random() * Math.PI * 2;
   torch.userData.baseIntensity = 1.6;
   state.dungeonGroup.add(torch);

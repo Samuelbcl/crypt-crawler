@@ -8,6 +8,9 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    sourcemap: true,
+    // Sourcemaps off in prod: ~30% bundle size win and avoids shipping
+    // unminified source paths to Steam/web users. Re-enable locally if you
+    // need to debug a prod-only issue.
+    sourcemap: false,
   },
 });

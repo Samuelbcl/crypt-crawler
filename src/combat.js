@@ -14,6 +14,7 @@ import { makePickup } from './pickups.js';
 import { playPlayerDeath } from './player.js';
 import { releaseMixer } from './assets.js';
 import { pendingEnemyCount } from './enemies.js';
+import { rng } from './utils/rng.js';
 
 export function damageEnemy(e, dmg) {
   const s = e.userData.stats;
@@ -54,7 +55,7 @@ export function onEnemyDeath(e) {
   SFX.enemyDie();
 
   // Drop gold sometimes (not for boss — boss has its own win flow)
-  if (Math.random() < 0.55 && !s.isBoss) {
+  if (rng() < 0.55 && !s.isBoss) {
     const p = makePickup('gold', e.position.x, e.position.z);
     state.pickups.push(p);
     state.scene.add(p);
@@ -63,7 +64,7 @@ export function onEnemyDeath(e) {
   state.scene.remove(e);
   if (e.userData.mixer) releaseMixer(e.userData.mixer);
   disposeNode(e);
-  state.pStats.kills++;
+  state.run.stats.kills++;
   state.totalKills++;
 
   const idx = state.enemies.indexOf(e);
@@ -80,10 +81,10 @@ export function onEnemyDeath(e) {
       && state.enemies.length === 0
       && pendingEnemyCount() === 0
       && state.gameState === STATE.PLAYING
-      && state.pFloor < MAX_FLOOR
-      && !state.pendingBoon
-      && !state.pFloorTransitioning) {
-    state.pendingBoon = true;
+      && state.run.floor < MAX_FLOOR
+      && !state.run.pendingBoon
+      && !state.run.transitioning) {
+    state.run.pendingBoon = true;
     setTimeout(() => showBoonPicker(), 600);
   }
 }
@@ -91,7 +92,7 @@ export function onEnemyDeath(e) {
 export function damagePlayer(amount) {
   if (state.pInvuln > 0) return;
 
-  state.pStats.hp -= amount;
+  state.run.stats.hp -= amount;
   state.pInvuln = 0.6;
 
   showDmgNumber(
@@ -107,15 +108,15 @@ export function damagePlayer(amount) {
   flashScreen('hit');
   SFX.hurt();
 
-  if (state.pStats.hp <= 0) {
-    state.pStats.hp = 0;
+  if (state.run.stats.hp <= 0) {
+    state.run.stats.hp = 0;
     onPlayerDeath();
   }
 }
 
 export function onPlayerDeath() {
-  if (state.pFloor > state.bestFloor) {
-    state.bestFloor = state.pFloor;
+  if (state.run.floor > state.bestFloor) {
+    state.bestFloor = state.run.floor;
     saveBestFloor(state.bestFloor);
   }
   state.gameState = STATE.GAME_OVER;

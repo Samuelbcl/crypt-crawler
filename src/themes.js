@@ -21,6 +21,8 @@
 //
 // Each prop name must exist in DUNGEON_MODULES (assets.js).
 
+import { rng } from './utils/rng.js';
+
 const T = {
   /* ── Stairs Throne — the room that owns the descending staircase.
      The stairs are auto-placed at room.cx, room.cz, so we offset the
@@ -154,5 +156,5 @@ export function pickRandomTheme(room) {
     return room.w >= t.minW && room.h >= t.minH;
   });
   if (candidates.length === 0) return 'empty';
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return candidates[Math.floor(rng() * candidates.length)];
 }

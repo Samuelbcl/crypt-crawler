@@ -3,6 +3,7 @@
 import './style.css';
 
 import { state, saveBestFloor, saveClassKey } from './state.js';
+import { seedRng } from './utils/rng.js';
 import { STATE, CELL, MAX_FLOOR, CLASSES, DIFFICULTIES } from './constants.js';
 
 import { initThree, updateCamera, updateTorches, disposeNode, createGuidanceArrow } from './scene.js';
@@ -24,15 +25,15 @@ import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPic
 
 function startRun() {
   resetRun();
-  state.pFloor = 1;
-  state.pFloorTransitioning = true; // gate stairs/boons during initial async spawn
-  generateDungeon(state.pFloor);
+  state.run.floor = 1;
+  state.run.transitioning = true; // gate stairs/boons during initial async spawn
+  generateDungeon(state.run.floor);
   buildDungeonMesh();
   spawnPlayer();
-  spawnEnemiesForFloor(state.pFloor, () => {
-    state.pFloorTransitioning = false;
+  spawnEnemiesForFloor(state.run.floor, () => {
+    state.run.transitioning = false;
   });
-  spawnPickupsForFloor(state.pFloor);
+  spawnPickupsForFloor(state.run.floor);
   state.gameState = STATE.PLAYING;
   showHud();
   updateHud();
@@ -65,9 +66,19 @@ function resetRun() {
     disposeNode(state.player);
     state.player = null;
   }
-  const cls = CLASSES[state.pClassKey] || CLASSES.warrior;
-  const diff = DIFFICULTIES[state.pDifficultyKey] || DIFFICULTIES.medium;
-  state.pStats = {
+  // Snapshot menu prefs into the run so a save/replay plays the class &
+  // difficulty it was recorded with, even if the menu pref changed since.
+  state.run.classKey = state.pClassKey;
+  state.run.difficultyKey = state.pDifficultyKey;
+  // Fresh seed per run. Cap to a 32-bit unsigned for mulberry32. The seed
+  // is also surfaced in the pause menu so bug reports / speedruns can
+  // reference it.
+  state.run.seed = (Date.now() & 0xffffffff) >>> 0;
+  seedRng(state.run.seed);
+
+  const cls = CLASSES[state.run.classKey] || CLASSES.warrior;
+  const diff = DIFFICULTIES[state.run.difficultyKey] || DIFFICULTIES.medium;
+  state.run.stats = {
     hp: cls.stats.hp, maxHp: cls.stats.hp,
     // Difficulty multiplies the player's base attack so easy mode actually
     // feels easier (also speeds up clears).
@@ -77,15 +88,15 @@ function resetRun() {
     // Boon multipliers / additions (1 = no change). Reset per run.
     atkCdMul: 1, dashCdMul: 1, atkRangeAdd: 0, atkArcMul: 1,
   };
-  state.activeBoons = [];
-  state.pendingBoon = false;
-  state.pFloor = 1;
+  state.run.boons = [];
+  state.run.pendingBoon = false;
+  state.run.floor = 1;
 }
 
 function nextFloor() {
   clearEntities();
 
-  generateDungeon(state.pFloor);
+  generateDungeon(state.run.floor);
   buildDungeonMesh();
 
   const r = state.rooms[0];
@@ -94,35 +105,35 @@ function nextFloor() {
   // Enemies spawn time-sliced across frames; the transition flag stays
   // raised until the queue drains so stairs / boon checks don't fire on
   // a half-populated floor.
-  spawnEnemiesForFloor(state.pFloor, () => {
-    state.pFloorTransitioning = false;
+  spawnEnemiesForFloor(state.run.floor, () => {
+    state.run.transitioning = false;
   });
-  spawnPickupsForFloor(state.pFloor);
+  spawnPickupsForFloor(state.run.floor);
 
   // Small heal between floors
-  state.pStats.hp = Math.min(state.pStats.maxHp, state.pStats.hp + 15);
-  if (state.pFloor > state.bestFloor) {
-    state.bestFloor = state.pFloor;
+  state.run.stats.hp = Math.min(state.run.stats.maxHp, state.run.stats.hp + 15);
+  if (state.run.floor > state.bestFloor) {
+    state.bestFloor = state.run.floor;
     saveBestFloor(state.bestFloor);
   }
   updateHud();
 }
 
 function checkStairs() {
-  if (!state.stairsPos || state.pendingBoon || state.pFloorTransitioning) return;
+  if (!state.stairsPos || state.run.pendingBoon || state.run.transitioning) return;
   const dx = state.player.position.x - state.stairsPos.x;
   const dz = state.player.position.z - state.stairsPos.z;
   if (Math.hypot(dx, dz) < 0.8 && state.enemies.length === 0) {
     SFX.stairs();
-    state.pFloor++;
-    if (state.pFloor > MAX_FLOOR) {
+    state.run.floor++;
+    if (state.run.floor > MAX_FLOOR) {
       // Should be caught by boss death first; safety net
       return;
     }
     // Defer the floor rebuild by one frame so we don't spend ~150ms
     // synchronously inside the game loop. The transition flag prevents
     // re-entry and the loop renders one neutral frame in between.
-    state.pFloorTransitioning = true;
+    state.run.transitioning = true;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         // nextFloor() kicks off the time-sliced enemy spawn; the flag is
@@ -146,9 +157,9 @@ function updateGuidanceArrow(t) {
   const visible = state.player
     && state.stairsPos
     && state.enemies.length === 0
-    && state.pFloor < MAX_FLOOR
-    && !state.pendingBoon
-    && !state.pFloorTransitioning;
+    && state.run.floor < MAX_FLOOR
+    && !state.run.pendingBoon
+    && !state.run.transitioning;
 
   arrow.visible = visible;
   if (!visible) return;
@@ -237,7 +248,10 @@ async function boot() {
   state.guidanceArrow = createGuidanceArrow();
   state.scene.add(state.guidanceArrow);
 
-  // Pre-build a "menu scene" so something atmospheric renders behind the menu
+  // Pre-build a "menu scene" so something atmospheric renders behind the menu.
+  // Seed once here so the menu dungeon varies across page reloads instead of
+  // looking identical every time.
+  seedRng((Date.now() & 0xffffffff) >>> 0);
   generateDungeon(1);
   buildDungeonMesh();
   state.player = buildPlayer();

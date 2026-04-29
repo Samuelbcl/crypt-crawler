@@ -11,6 +11,7 @@ import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { shake } from './scene.js';
 import { instantiate, playOnly, createShadowDisc } from './assets.js';
+import { rng } from './utils/rng.js';
 
 // Quaternius models import facing +Z, matching the old primitive enemies.
 // rotation.y = atan2(dx, dz) on the parent group already points them at the
@@ -149,7 +150,7 @@ export function makeEnemy(type, x, z, floor) {
 
   // Apply difficulty preset on top — both boss and regulars get scaled here
   // so easy mode is meaningfully easier including against the boss.
-  const diff = DIFFICULTIES[state.pDifficultyKey] || DIFFICULTIES.medium;
+  const diff = DIFFICULTIES[state.run.difficultyKey] || DIFFICULTIES.medium;
   stats.hp = Math.max(1, Math.round(stats.hp * diff.enemyHpMul));
   stats.maxHp = stats.hp;
   stats.atk = Math.max(1, Math.round(stats.atk * diff.enemyAtkMul));
@@ -181,12 +182,12 @@ function buildEnemyDescriptors(floor) {
   const descs = [];
   for (let i = 1; i < state.rooms.length; i++) {
     const r = state.rooms[i];
-    const count = 1 + Math.floor(Math.random() * 2) + Math.floor(floor / 2);
+    const count = 1 + Math.floor(rng() * 2) + Math.floor(floor / 2);
     for (let j = 0; j < count; j++) {
       const types = floor >= 2 ? ['slime', 'goblin', 'archer'] : ['slime', 'goblin'];
-      const t = types[Math.floor(Math.random() * types.length)];
-      const cellX = r.x + Math.floor(Math.random() * r.w);
-      const cellZ = r.z + Math.floor(Math.random() * r.h);
+      const t = types[Math.floor(rng() * types.length)];
+      const cellX = r.x + Math.floor(rng() * r.w);
+      const cellZ = r.z + Math.floor(rng() * r.h);
       descs.push({ type: t, x: cellX * CELL, z: cellZ * CELL });
     }
   }
@@ -296,7 +297,7 @@ export function updateEnemies(dt) {
         // Random charge tell. Guarded against l ~ 0 — if the goblin is
         // standing right on the player, the charge math would NaN out and
         // drift the entity off the grid.
-        if (dist < 8 && dist > 2 && Math.random() < 0.005 && s.atkCd <= 0) {
+        if (dist < 8 && dist > 2 && rng() < 0.005 && s.atkCd <= 0) {
           const l = Math.hypot(dx, dz);
           if (l > 0.01) {
             s.charging = true;

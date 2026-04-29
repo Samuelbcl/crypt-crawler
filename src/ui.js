@@ -3,30 +3,31 @@
 import { state, _scratchV3, saveBestFloor, saveClassKey, saveDifficultyKey } from './state.js';
 import { STATE, MAX_FLOOR, CLASSES, BOONS, DIFFICULTIES } from './constants.js';
 import { SFX, getMasterVolume } from './audio.js';
+import { rng } from './utils/rng.js';
 
 /* ─── HUD ────────────────────────────────────────────────────── */
 
 export function updateHud() {
   const hpFill = document.getElementById('hp-fill');
   const hpText = document.getElementById('hp-text');
-  const ratio = Math.max(0, state.pStats.hp / state.pStats.maxHp);
+  const ratio = Math.max(0, state.run.stats.hp / state.run.stats.maxHp);
   hpFill.style.width = (ratio * 100) + '%';
-  hpText.textContent = Math.max(0, Math.ceil(state.pStats.hp)) + '/' + state.pStats.maxHp;
+  hpText.textContent = Math.max(0, Math.ceil(state.run.stats.hp)) + '/' + state.run.stats.maxHp;
   // Dynamic colour: green > 60%, yellow 30-60%, red < 30%.
   if (ratio > 0.6) hpFill.style.background = 'linear-gradient(180deg, #66ff88, #2fa84d)';
   else if (ratio > 0.3) hpFill.style.background = 'linear-gradient(180deg, #ffd966, #c4a03e)';
   else hpFill.style.background = 'linear-gradient(180deg, #ff5555, #c43e3e)';
 
   document.getElementById('floor-num').textContent =
-    state.pFloor === MAX_FLOOR ? '⚠ ÉTAGE BOSS' : 'Étage ' + state.pFloor;
+    state.run.floor === MAX_FLOOR ? '⚠ ÉTAGE BOSS' : 'Étage ' + state.run.floor;
 
   const enemyCount = state.enemies.length;
   document.getElementById('enemies-left').textContent =
     enemyCount + ' ennemi' + (enemyCount > 1 ? 's' : '');
 
-  document.getElementById('stat-atk').textContent = state.pStats.atk;
-  document.getElementById('stat-spd').textContent = state.pStats.spd.toFixed(1);
-  document.getElementById('stat-gold').textContent = state.pStats.gold;
+  document.getElementById('stat-atk').textContent = state.run.stats.atk;
+  document.getElementById('stat-spd').textContent = state.run.stats.spd.toFixed(1);
+  document.getElementById('stat-gold').textContent = state.run.stats.gold;
 
   const hint = document.getElementById('hint');
   if (enemyCount === 0 && state.stairsPos) hint.classList.remove('hidden');
@@ -61,9 +62,9 @@ export function showGameOver() {
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('gameover').classList.remove('hidden');
   document.getElementById('crosshair').style.display = 'none';
-  document.getElementById('go-floor').textContent = state.pFloor;
-  document.getElementById('go-gold').textContent = state.pStats.gold;
-  document.getElementById('go-kills').textContent = state.pStats.kills;
+  document.getElementById('go-floor').textContent = state.run.floor;
+  document.getElementById('go-gold').textContent = state.run.stats.gold;
+  document.getElementById('go-kills').textContent = state.run.stats.kills;
   document.getElementById('go-best').textContent = 'Record : étage ' + state.bestFloor;
 }
 
@@ -71,8 +72,8 @@ export function showVictory() {
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('victory').classList.remove('hidden');
   document.getElementById('crosshair').style.display = 'none';
-  document.getElementById('vw-gold').textContent = state.pStats.gold;
-  document.getElementById('vw-kills').textContent = state.pStats.kills;
+  document.getElementById('vw-gold').textContent = state.run.stats.gold;
+  document.getElementById('vw-kills').textContent = state.run.stats.kills;
 }
 
 /* ─── PAUSE ──────────────────────────────────────────────────── */
@@ -89,7 +90,9 @@ export function togglePause() {
 
 function showPauseMenu() {
   document.getElementById('pm-floor').textContent =
-    state.pFloor === MAX_FLOOR ? 'Boss' : state.pFloor;
+    state.run.floor === MAX_FLOOR ? 'Boss' : state.run.floor;
+  // Surface the run seed so bug reports / speedruns can reference it.
+  document.getElementById('pm-seed').textContent = state.run.seed || '—';
   // Sync slider with current persisted volume.
   const pct = Math.round(getMasterVolume() * 100);
   const slider = document.getElementById('pm-volume');
@@ -106,8 +109,8 @@ export function hidePauseMenu() {
 
 export function triggerVictory() {
   if (state.gameState === STATE.VICTORY || state.gameState === STATE.GAME_OVER) return;
-  if (state.pFloor > state.bestFloor) {
-    state.bestFloor = state.pFloor;
+  if (state.run.floor > state.bestFloor) {
+    state.bestFloor = state.run.floor;
     saveBestFloor(state.bestFloor);
   }
   state.gameState = STATE.VICTORY;
@@ -169,12 +172,12 @@ export function showBoonPicker(onPicked) {
   row.innerHTML = '';
 
   // Pick 3 random boons that haven't already been taken this run.
-  const pool = BOONS.filter((b) => !state.activeBoons.includes(b.id));
+  const pool = BOONS.filter((b) => !state.run.boons.includes(b.id));
   // Even if everything's been picked once, fall back to the full list so the
   // overlay never shows zero choices on long runs.
   const choices = (pool.length >= 3 ? pool : BOONS.slice());
   for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [choices[i], choices[j]] = [choices[j], choices[i]];
   }
   const picked = choices.slice(0, 3);
@@ -188,9 +191,9 @@ export function showBoonPicker(onPicked) {
       <div class="boon-desc">${b.desc}</div>
     `;
     card.addEventListener('click', () => {
-      b.apply(state.pStats);
-      state.activeBoons.push(b.id);
-      state.pendingBoon = false;
+      b.apply(state.run.stats);
+      state.run.boons.push(b.id);
+      state.run.pendingBoon = false;
       document.getElementById('boon-picker').classList.add('hidden');
       updateHud();
       const cb = _onBoonPicked;
