@@ -118,7 +118,20 @@ function instancedFromCells(template, cells, yOffset = 0) {
   return mesh;
 }
 
-export function buildDungeonMesh() {
+// Tracks the currently running theme placement loop so a fast retry doesn't
+// leave two rAFs filling props into a stale dungeonGroup.
+let _themeTickHandle = null;
+
+// onComplete fires once every room theme has been placed. Architecture is
+// built synchronously (cheap: 3-4 InstancedMesh + the stairs prop). Theme
+// placement is the slow part — ~10 prop clones per room — and is spread
+// across frames with a per-frame budget so floor transitions don't burn one
+// 200-300ms frame.
+export function buildDungeonMesh(onComplete) {
+  if (_themeTickHandle !== null) {
+    cancelAnimationFrame(_themeTickHandle);
+    _themeTickHandle = null;
+  }
   // Geometry and materials are owned by the asset cache (shared across
   // runs), so we DON'T dispose them — only detach the wrapper.
   if (state.dungeonGroup) {
@@ -246,11 +259,28 @@ export function buildDungeonMesh() {
     state.dungeonGroup.add(sG);
   }
 
-  /* ── Apply each room's hand-designed theme. Torches, banners, and
-        every prop are now decided by themes.js per room. */
-  for (const r of state.rooms) placeTheme(r);
-
+  // Architecture is in place — attach now so the player sees walls/floors
+  // immediately while theme props (next phase) trickle in over a few frames.
   state.scene.add(state.dungeonGroup);
+
+  /* ── Apply each room's hand-designed theme. Torches, banners, and
+        every prop are now decided by themes.js per room. Time-sliced
+        across rAFs with a 5ms budget — same pattern as enemy spawn. */
+  const queue = state.rooms.slice();
+  function tick() {
+    const start = performance.now();
+    while (queue.length > 0 && (performance.now() - start) < 5) {
+      placeTheme(queue.shift());
+    }
+    if (queue.length > 0) {
+      _themeTickHandle = requestAnimationFrame(tick);
+    } else {
+      _themeTickHandle = null;
+      if (onComplete) onComplete();
+    }
+  }
+  if (queue.length > 0) tick();
+  else if (onComplete) onComplete();
 }
 
 // Mounts a prop on the room-facing edge of an adjacent wall cell.

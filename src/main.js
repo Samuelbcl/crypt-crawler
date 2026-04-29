@@ -23,16 +23,34 @@ import { showMenu, showHud, updateHud, togglePause, hidePauseMenu, setupClassPic
 
 /* ─── Run lifecycle ──────────────────────────────────────────── */
 
+// Wait for both the time-sliced theme placement and the time-sliced enemy
+// spawn to finish before lifting the transitioning gate, then prewarm the
+// renderer so the FIRST gameplay frame doesn't trigger a 200-700ms shader
+// compile (which is what was driving the INP spikes Vercel was reporting).
+function onFloorBuildReady() {
+  let themesDone = false, enemiesDone = false;
+  function maybeFinish() {
+    if (!themesDone || !enemiesDone) return;
+    // Force every material/shader on screen to compile NOW, not at first
+    // render. Eats the cost during the loading pause instead of mid-game.
+    state.renderer.compile(state.scene, state.camera);
+    state.run.transitioning = false;
+  }
+  return {
+    onThemes: () => { themesDone = true; maybeFinish(); },
+    onEnemies: () => { enemiesDone = true; maybeFinish(); },
+  };
+}
+
 function startRun() {
   resetRun();
   state.run.floor = 1;
   state.run.transitioning = true; // gate stairs/boons during initial async spawn
   generateDungeon(state.run.floor);
-  buildDungeonMesh();
+  const ready = onFloorBuildReady();
+  buildDungeonMesh(ready.onThemes);
   spawnPlayer();
-  spawnEnemiesForFloor(state.run.floor, () => {
-    state.run.transitioning = false;
-  });
+  spawnEnemiesForFloor(state.run.floor, ready.onEnemies);
   spawnPickupsForFloor(state.run.floor);
   state.gameState = STATE.PLAYING;
   showHud();
@@ -97,17 +115,17 @@ function nextFloor() {
   clearEntities();
 
   generateDungeon(state.run.floor);
-  buildDungeonMesh();
 
   const r = state.rooms[0];
   state.player.position.set(r.cx * CELL, 0, r.cz * CELL);
 
-  // Enemies spawn time-sliced across frames; the transition flag stays
-  // raised until the queue drains so stairs / boon checks don't fire on
-  // a half-populated floor.
-  spawnEnemiesForFloor(state.run.floor, () => {
-    state.run.transitioning = false;
-  });
+  // Both buildDungeonMesh (theme placement) and spawnEnemiesForFloor are
+  // time-sliced across frames. The transitioning gate stays raised until
+  // both signal done, then renderer.compile() prewarms shaders so the first
+  // frame back in gameplay doesn't stall.
+  const ready = onFloorBuildReady();
+  buildDungeonMesh(ready.onThemes);
+  spawnEnemiesForFloor(state.run.floor, ready.onEnemies);
   spawnPickupsForFloor(state.run.floor);
 
   // Small heal between floors
@@ -253,7 +271,10 @@ async function boot() {
   // looking identical every time.
   seedRng((Date.now() & 0xffffffff) >>> 0);
   generateDungeon(1);
-  buildDungeonMesh();
+  // Compile shaders eagerly once theme placement finishes — same trick as
+  // floor transitions, applied to the menu scene so the first click into
+  // a real run doesn't pay the compile bill twice.
+  buildDungeonMesh(() => state.renderer.compile(state.scene, state.camera));
   state.player = buildPlayer();
   const r = state.rooms[0];
   state.player.position.set(r.cx * CELL, 0, r.cz * CELL);

@@ -10,8 +10,13 @@ import { spawnArrow } from './pickups.js';
 import { SFX } from './audio.js';
 import { spawnParticles } from './particles.js';
 import { shake } from './scene.js';
-import { instantiate, playOnly, createShadowDisc } from './assets.js';
+import { instantiate, playOnly, createShadowDisc, setMixerActive } from './assets.js';
 import { rng } from './utils/rng.js';
+
+// Beyond this distance from the player we freeze enemy AI and skinning.
+// The dungeon is ~50 units across; 25 covers the camera frustum + a small
+// "warm" buffer so enemies don't visibly snap into motion as they enter view.
+const SLEEP_DIST = 25;
 
 // Quaternius models import facing +Z, matching the old primitive enemies.
 // rotation.y = atan2(dx, dz) on the parent group already points them at the
@@ -245,6 +250,20 @@ export function updateEnemies(dt) {
   for (const e of state.enemies) {
     const s = e.userData.stats;
 
+    const dx = state.player.position.x - e.position.x;
+    const dz = state.player.position.z - e.position.z;
+    const dist = Math.hypot(dx, dz);
+
+    // Distant enemies sleep: no AI tick, no skinning, no HP-bar billboarding.
+    // They wake up automatically next frame as the player approaches. The
+    // boss is exempted — its aura/HP stays visible and we want phase logic
+    // running even from across the map.
+    if (dist > SLEEP_DIST && !s.isBoss) {
+      if (e.userData.mixer) setMixerActive(e.userData.mixer, false);
+      continue;
+    }
+    if (e.userData.mixer) setMixerActive(e.userData.mixer, true);
+
     // Hurt flash (in-place setHex to avoid allocating a Color every frame)
     if (e.userData.hurtT > 0) {
       e.userData.hurtT -= dt;
@@ -253,9 +272,6 @@ export function updateEnemies(dt) {
       e.userData.body.material.emissive.setHex(0x000000);
     }
 
-    const dx = state.player.position.x - e.position.x;
-    const dz = state.player.position.z - e.position.z;
-    const dist = Math.hypot(dx, dz);
     s.atkCd = Math.max(0, s.atkCd - dt);
 
     if (s.type === 'slime') {

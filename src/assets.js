@@ -22,6 +22,10 @@ const MODELS = {
 
 const _cache = {}; // name -> { scene, animations }
 const _mixers = []; // every spawned mixer registers here for per-frame update
+// Mixers added here are skipped by updateMixers() until removed. Used by
+// enemies.js to put far-away enemies to sleep — no skinning matrix work
+// for actors the player can't see.
+const _sleepingMixers = new Set();
 
 function loadOne(name, url) {
   return new Promise((resolve, reject) => {
@@ -246,10 +250,23 @@ export function instantiate(name) {
 export function releaseMixer(mixer) {
   const i = _mixers.indexOf(mixer);
   if (i >= 0) _mixers.splice(i, 1);
+  _sleepingMixers.delete(mixer);
+}
+
+// Toggle whether a mixer participates in updateMixers(). Skinned-mesh
+// animation is the single most expensive per-frame cost we have (each bone
+// reposes a matrix on every update), so freezing distant enemies is a big
+// steady-state win.
+export function setMixerActive(mixer, active) {
+  if (active) _sleepingMixers.delete(mixer);
+  else _sleepingMixers.add(mixer);
 }
 
 export function updateMixers(dt) {
-  for (const m of _mixers) m.update(dt);
+  for (const m of _mixers) {
+    if (_sleepingMixers.has(m)) continue;
+    m.update(dt);
+  }
 }
 
 // A flat dark disc placed under a character to fake an ambient occlusion

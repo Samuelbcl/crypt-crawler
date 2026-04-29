@@ -41,7 +41,10 @@ export function initThree() {
   const dir = new THREE.DirectionalLight(0xffd090, 1.3);
   dir.position.set(20, 30, 10);
   dir.castShadow = true;
-  dir.shadow.mapSize.set(1024, 1024);
+  // 512² is half the texture work and still reads fine through PCF softening
+  // at this camera distance — the shadow is mostly under-prop occlusion, not
+  // detailed contact shadows. Big perf win on the shadow pass.
+  dir.shadow.mapSize.set(512, 512);
   dir.shadow.camera.near = 1;
   dir.shadow.camera.far = 80;
   dir.shadow.camera.left = -25;
